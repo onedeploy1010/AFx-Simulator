@@ -37,12 +37,17 @@ export function calculateDailyAFRelease(
 }
 
 // Calculate AF exit distribution based on per-package release choice ratios
-// Inputs: afReleased (AF), afPrice (USDC/AF), packageConfig with release percentages
+// Inputs: afReleased (AF), afPrice (USDC/AF), packageConfig with release percentages and trading capital multiplier
 // Outputs: AF units for withdraw/keep/burn, USDC for trading capital
 export function calculateAFExitDistribution(
   afReleased: number,
   afPrice: number,
-  packageConfig: { releaseWithdrawPercent: number; releaseKeepPercent: number; releaseConvertPercent: number },
+  packageConfig: { 
+    releaseWithdrawPercent: number; 
+    releaseKeepPercent: number; 
+    releaseConvertPercent: number;
+    tradingCapitalMultiplier: number;
+  },
   config: AFxConfig
 ): {
   toWithdrawAf: number; // AF sold to secondary market
@@ -65,8 +70,9 @@ export function calculateAFExitDistribution(
   const toBurnAf = toWithdrawAf * (config.afExitBurnRatio / 100);
   const toSecondaryMarketAf = toWithdrawAf - toBurnAf;
   
-  // Convert AF to USDC for trading capital (at current AF price × rate multiplier)
-  const toTradingCapitalUsdc = toConvertAf * afPrice * config.afToTradingCapitalRate;
+  // Convert AF to USDC for trading capital using package's trading capital multiplier
+  // AF value in USDC × package multiplier = trading capital
+  const toTradingCapitalUsdc = toConvertAf * afPrice * packageConfig.tradingCapitalMultiplier;
   
   return {
     toWithdrawAf,

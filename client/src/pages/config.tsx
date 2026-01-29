@@ -250,17 +250,10 @@ export default function ConfigPage() {
                   />
                   <p className="text-xs text-muted-foreground">每日交易金占交易本金的比例</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>AF 转交易金倍率: {config.afToTradingCapitalRate}x</Label>
-                  <Slider
-                    value={[config.afToTradingCapitalRate * 10]}
-                    onValueChange={([value]) => setConfig({ afToTradingCapitalRate: value / 10 })}
-                    min={5}
-                    max={30}
-                    step={1}
-                    data-testid="slider-af-convert-rate"
-                  />
-                  <p className="text-xs text-muted-foreground">AF 兑换交易金时的倍率</p>
+                <div className="p-3 rounded-md bg-muted">
+                  <p className="text-sm text-muted-foreground">
+                    AF 转交易金倍率：使用每个配套的"交易金倍数"设置
+                  </p>
                 </div>
               </CardContent>
             </Card>
