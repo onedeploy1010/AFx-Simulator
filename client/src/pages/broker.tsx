@@ -8,12 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfigStore } from "@/hooks/use-config";
 import { BROKER_LEVELS } from "@shared/schema";
-import { calculateBrokerLayerEarnings, formatNumber, formatCurrency } from "@/lib/calculations";
+import { calculateBrokerLayerEarnings, formatNumber, formatCurrency, calculateInitialPrice } from "@/lib/calculations";
 import { Users, TrendingUp, Award, Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 export default function BrokerPage() {
-  const { config } = useConfigStore();
+  const { config, aamPool } = useConfigStore();
   const [selectedLevel, setSelectedLevel] = useState<string>("V1");
   const [afReleased, setAfReleased] = useState(1000);
   const [teamSize, setTeamSize] = useState(100);
@@ -252,7 +252,7 @@ export default function BrokerPage() {
                     <TableHead>层级</TableHead>
                     <TableHead>分配比例</TableHead>
                     <TableHead>AF 收益</TableHead>
-                    <TableHead>USDC 价值 (按 $0.1)</TableHead>
+                    <TableHead>USDC 价值 (按 ${aamPool.afPrice.toFixed(4)})</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -263,13 +263,13 @@ export default function BrokerPage() {
                       </TableCell>
                       <TableCell>{levelConfig?.ratePerLayer}%</TableCell>
                       <TableCell>{formatNumber(earning.earnings)} AF</TableCell>
-                      <TableCell>{formatCurrency(earning.earnings * 0.1)}</TableCell>
+                      <TableCell>{formatCurrency(earning.earnings * aamPool.afPrice)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="bg-muted">
                     <TableCell colSpan={2} className="font-medium">合计</TableCell>
                     <TableCell className="font-medium">{formatNumber(totalLayerEarnings)} AF</TableCell>
-                    <TableCell className="font-medium">{formatCurrency(totalLayerEarnings * 0.1)}</TableCell>
+                    <TableCell className="font-medium">{formatCurrency(totalLayerEarnings * aamPool.afPrice)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

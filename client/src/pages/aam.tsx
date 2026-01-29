@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulation, formatNumber, formatCurrency } from "@/lib/calculations";
+import { runSimulation, formatNumber, formatCurrency, calculateInitialPrice } from "@/lib/calculations";
 import { Droplets, TrendingUp, Flame, RefreshCw, DollarSign, Coins, Activity } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 
@@ -47,7 +47,8 @@ export default function AAMPage() {
     };
   }, [simulationResults, aamPool]);
 
-  const priceChange = totals ? ((totals.finalPrice / aamPool.afPrice) - 1) * 100 : 0;
+  const initialPrice = calculateInitialPrice(config);
+  const priceChange = totals ? ((totals.finalPrice / initialPrice) - 1) * 100 : 0;
 
   return (
     <div className="p-6 space-y-6">

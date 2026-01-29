@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
 import { PACKAGE_TIERS } from "@shared/schema";
+import { calculateInitialPrice, calculateDepositReserveRatio } from "@/lib/calculations";
 import { RotateCcw, Save, Settings, Coins, TrendingUp, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,7 +37,7 @@ export default function ConfigPage() {
   const depositBuybackRatio = config.depositBuybackRatio ?? 20;
   const initialLpUsdc = config.initialLpUsdc ?? 1000000;
   const initialLpAf = config.initialLpAf ?? 10000000;
-  const depositReserveRatio = Math.max(0, 100 - depositLpRatio - depositBuybackRatio);
+  const depositReserveRatio = calculateDepositReserveRatio(config);
 
   return (
     <div className="p-6 space-y-6">
@@ -170,7 +171,7 @@ export default function ConfigPage() {
               </div>
               <div className="mt-3 p-3 rounded-md bg-muted">
                 <p className="text-sm text-muted-foreground">
-                  初始币价: ${initialLpAf > 0 ? (initialLpUsdc / initialLpAf).toFixed(4) : 0}
+                  初始币价: ${calculateInitialPrice(config).toFixed(4)}
                 </p>
               </div>
             </CardContent>

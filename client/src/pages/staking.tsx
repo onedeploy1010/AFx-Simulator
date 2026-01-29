@@ -10,13 +10,13 @@ import { useConfigStore } from "@/hooks/use-config";
 import { PACKAGE_TIERS } from "@shared/schema";
 import { Plus, Trash2, Coins, TrendingUp, Calculator, CircleDollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { formatNumber, formatCurrency } from "@/lib/calculations";
+import { formatNumber, formatCurrency, calculateInitialPrice, calculateOrderTradingCapital, calculateOrderDailyRelease } from "@/lib/calculations";
 
 export default function StakingPage() {
   const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders, resetAAMPool } = useConfigStore();
   
   // Calculate initial price for comparison
-  const initialPrice = config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : 0.1;
+  const initialPrice = calculateInitialPrice(config);
   const priceChange = aamPool.afPrice - initialPrice;
   const priceChangePercent = initialPrice > 0 ? ((aamPool.afPrice / initialPrice) - 1) * 100 : 0;
   const { toast } = useToast();
@@ -67,12 +67,10 @@ export default function StakingPage() {
   const totalStaked = stakingOrders.reduce((sum, order) => sum + order.amount, 0);
   // Calculate trading capital dynamically based on current config
   const totalTradingCapital = stakingOrders.reduce((sum, order) => {
-    const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
-    return sum + (order.amount * (pkg?.tradingCapitalMultiplier || 1));
+    return sum + calculateOrderTradingCapital(order, config);
   }, 0);
   const avgDailyRelease = stakingOrders.reduce((sum, order) => {
-    const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
-    return sum + (order.amount * (pkg?.afReleaseRate || 0) / 100);
+    return sum + calculateOrderDailyRelease(order, config, aamPool.afPrice);
   }, 0);
 
   const ordersByTier = PACKAGE_TIERS.map(tier => ({
@@ -95,7 +93,7 @@ export default function StakingPage() {
               resetAAMPool();
               toast({ 
                 title: "AAM池已重置", 
-                description: `价格: $${(config.initialLpUsdc / config.initialLpAf).toFixed(6)} (${formatCurrency(config.initialLpUsdc)} / ${formatNumber(config.initialLpAf)} AF)` 
+                description: `价格: $${calculateInitialPrice(config).toFixed(6)} (${formatCurrency(config.initialLpUsdc)} / ${formatNumber(config.initialLpAf)} AF)`
               });
             }}
             data-testid="button-reset-aam"
@@ -286,7 +284,7 @@ export default function StakingPage() {
                   {stakingOrders.slice(0, 20).map((order) => {
                     const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
                     // Calculate trading capital dynamically based on current config
-                    const dynamicTradingCapital = order.amount * (pkg?.tradingCapitalMultiplier || 1);
+                    const dynamicTradingCapital = calculateOrderTradingCapital(order, config);
                     return (
                       <TableRow key={order.id}>
                         <TableCell>

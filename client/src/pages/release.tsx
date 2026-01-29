@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulation, formatNumber, formatCurrency, calculateOrderReleaseProgress } from "@/lib/calculations";
+import { runSimulation, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue } from "@/lib/calculations";
 import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
@@ -36,7 +36,7 @@ export default function ReleasePage() {
       totalBrokerProfit: simulationResults.reduce((sum, r) => sum + r.brokerProfit, 0),
       totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
       avgPrice: simulationResults.reduce((sum, r) => sum + r.afPrice, 0) / simulationResults.length,
-      initialPrice: config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : aamPool.afPrice,
+      initialPrice: calculateInitialPrice(config),
       finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || 0,
       totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketAf, 0),
       totalToTradingFee: simulationResults.reduce((sum, r) => sum + r.toTradingFeeAf, 0),
@@ -64,7 +64,7 @@ export default function ReleasePage() {
     let cumAfSellingRevenue = 0;
     let cumForexProfit = 0;
 
-    const lpInitialPrice = config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : aamPool.afPrice;
+    const lpInitialPrice = calculateInitialPrice(config);
 
     // Start with day 0 (initial state)
     const data = [{
@@ -471,25 +471,23 @@ export default function ReleasePage() {
                       const pkg = config.packageConfigs.find(p => p.tier === progress.packageTier);
                       if (!pkg) return null;
                       const multiplier = pkg.tradingCapitalMultiplier;
-                      const dailyVolume = progress.tradingCapital * (config.dailyTradingVolumePercent / 100);
-                      const dailyProfit = dailyVolume * (pkg.tradingProfitRate / 100);
-                      const dailyFee = dailyProfit * (pkg.tradingFeeRate / 100);
-                      const dailyNetProfit = dailyProfit - dailyFee;
-                      const userDailyProfit = dailyNetProfit * (pkg.profitSharePercent / 100);
+
+                      // Use shared calculation for forex profit
+                      const order = filteredOrders.find(o => o.id === progress.orderId);
+                      const forexDetail = order
+                        ? calculateOrderDailyForexProfit(order, config)
+                        : { dailyVolume: 0, userProfit: 0 };
+                      const dailyVolume = forexDetail.dailyVolume;
+                      const userDailyProfit = forexDetail.userProfit;
                       const periodForexProfit = userDailyProfit * progress.currentDay;
 
-                      // AF selling revenue: withdrawn AF sold to LP pool
-                      const withdrawPercent = pkg.releaseWithdrawPercent;
-                      const totalPct = pkg.releaseWithdrawPercent + pkg.releaseKeepPercent + pkg.releaseConvertPercent;
-                      const normalizer = totalPct > 0 ? 100 / totalPct : 1;
-                      const withdrawnAf = progress.totalAfReleased * ((withdrawPercent * normalizer) / 100);
-                      const burnedAf = withdrawnAf * (config.afExitBurnRatio / 100);
-                      const soldAf = withdrawnAf - burnedAf;
-                      // Use average price for estimation
+                      // Use shared calculation for AF selling revenue
                       const currentAfPrice = simulationResults.length > 0
                         ? simulationResults[Math.min(progress.currentDay - 1, simulationResults.length - 1)]?.afPrice || aamPool.afPrice
                         : aamPool.afPrice;
-                      const afSellingRevenue = soldAf * currentAfPrice;
+                      const afSelling = calculateOrderAfSellingRevenue(progress.totalAfReleased, currentAfPrice, pkg, config);
+                      const soldAf = afSelling.soldAf;
+                      const afSellingRevenue = afSelling.revenueUsdc;
 
                       const totalRevenue = periodForexProfit + afSellingRevenue;
 

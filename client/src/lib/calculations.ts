@@ -1,4 +1,4 @@
-import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress } from "@shared/schema";
+import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress, PackageConfig } from "@shared/schema";
 
 // Calculate trading fee rate based on staking amount
 export function calculateTradingFeeRate(
@@ -350,6 +350,89 @@ export function runSimulation(
   }
   
   return results;
+}
+
+// ============================================================
+// Shared helper functions used across multiple pages
+// ============================================================
+
+// Calculate initial AF price from LP pool config
+export function calculateInitialPrice(config: AFxConfig): number {
+  return config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : 0.1;
+}
+
+// Calculate deposit reserve ratio (remaining after LP + buyback)
+export function calculateDepositReserveRatio(config: AFxConfig): number {
+  return Math.max(0, 100 - config.depositLpRatio - config.depositBuybackRatio);
+}
+
+// Calculate per-order trading capital based on current config
+export function calculateOrderTradingCapital(order: StakingOrder, config: AFxConfig): number {
+  const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
+  return order.amount * (pkg?.tradingCapitalMultiplier || 1);
+}
+
+// Calculate per-order daily trading volume
+export function calculateOrderDailyVolume(order: StakingOrder, config: AFxConfig): number {
+  return calculateOrderTradingCapital(order, config) * (config.dailyTradingVolumePercent / 100);
+}
+
+// Calculate per-order daily AF release amount (snapshot at given price)
+export function calculateOrderDailyRelease(order: StakingOrder, config: AFxConfig, afPrice: number): number {
+  const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
+  if (!pkg || !config.stakingEnabled) return 0;
+  if (config.afReleaseMode === 'gold_standard') {
+    return (order.amount * (pkg.afReleaseRate / 100)) / afPrice;
+  }
+  return order.amount * (pkg.afReleaseRate / 100);
+}
+
+// Calculate per-order daily forex profit breakdown
+export function calculateOrderDailyForexProfit(
+  order: StakingOrder,
+  config: AFxConfig
+): {
+  dailyVolume: number;
+  grossProfit: number;
+  tradingFee: number;
+  netProfit: number;
+  userProfit: number;
+} {
+  const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
+  if (!pkg) return { dailyVolume: 0, grossProfit: 0, tradingFee: 0, netProfit: 0, userProfit: 0 };
+
+  const tradingCapital = order.amount * pkg.tradingCapitalMultiplier;
+  const dailyVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
+  const sim = calculateTradingSimulation(
+    dailyVolume,
+    pkg.tradingProfitRate / 100,
+    pkg.tradingFeeRate,
+    pkg.profitSharePercent,
+    config
+  );
+
+  const grossProfit = dailyVolume * (pkg.tradingProfitRate / 100);
+  return {
+    dailyVolume,
+    grossProfit,
+    tradingFee: sim.tradingFee,
+    netProfit: grossProfit - sim.tradingFee,
+    userProfit: sim.userProfit,
+  };
+}
+
+// Calculate AF selling revenue from exit distribution over a period
+export function calculateOrderAfSellingRevenue(
+  totalAfReleased: number,
+  afPrice: number,
+  packageConfig: PackageConfig,
+  config: AFxConfig
+): { soldAf: number; revenueUsdc: number } {
+  const exitDist = calculateAFExitDistribution(totalAfReleased, afPrice, packageConfig, config);
+  return {
+    soldAf: exitDist.toSecondaryMarketAf,
+    revenueUsdc: exitDist.toSecondaryMarketAf * afPrice,
+  };
 }
 
 // Format number for display

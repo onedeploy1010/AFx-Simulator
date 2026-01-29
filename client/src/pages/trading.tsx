@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/hooks/use-config";
-import { calculateTradingSimulation, formatNumber, formatCurrency, formatPercent } from "@/lib/calculations";
+import { calculateTradingSimulation, formatNumber, formatCurrency, formatPercent, calculateOrderTradingCapital, calculateOrderDailyVolume, calculateOrderDailyForexProfit } from "@/lib/calculations";
 import { Calculator, TrendingUp, Users, Building, Coins, ArrowRight, Package, RefreshCw } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
@@ -18,9 +18,10 @@ export default function TradingPage() {
       const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
       if (!packageConfig) return null;
 
-      const dynamicTradingCapital = order.amount * packageConfig.tradingCapitalMultiplier;
-      const dailyTradingVolume = dynamicTradingCapital * (config.dailyTradingVolumePercent / 100);
-      
+      const dynamicTradingCapital = calculateOrderTradingCapital(order, config);
+      const dailyTradingVolume = calculateOrderDailyVolume(order, config);
+      const forexDetail = calculateOrderDailyForexProfit(order, config);
+
       const simulation = calculateTradingSimulation(
         dailyTradingVolume,
         packageConfig.tradingProfitRate / 100,
@@ -28,9 +29,6 @@ export default function TradingPage() {
         packageConfig.profitSharePercent,
         config
       );
-
-      const grossProfit = dailyTradingVolume * (packageConfig.tradingProfitRate / 100);
-      const netProfit = grossProfit - simulation.tradingFee;
 
       return {
         orderId: order.id,
@@ -41,8 +39,8 @@ export default function TradingPage() {
         feeRate: packageConfig.tradingFeeRate,
         profitRate: packageConfig.tradingProfitRate,
         profitSharePercent: packageConfig.profitSharePercent,
-        grossProfit,
-        netProfit,
+        grossProfit: forexDetail.grossProfit,
+        netProfit: forexDetail.netProfit,
         ...simulation,
       };
     }).filter(Boolean);
