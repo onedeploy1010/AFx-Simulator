@@ -31,7 +31,12 @@ export default function ConfigPage() {
     });
   };
 
-  const depositReserveRatio = Math.max(0, 100 - config.depositLpRatio - config.depositBuybackRatio);
+  // Ensure values have defaults to prevent undefined
+  const depositLpRatio = config.depositLpRatio ?? 30;
+  const depositBuybackRatio = config.depositBuybackRatio ?? 20;
+  const initialLpUsdc = config.initialLpUsdc ?? 1000000;
+  const initialLpAf = config.initialLpAf ?? 10000000;
+  const depositReserveRatio = Math.max(0, 100 - depositLpRatio - depositBuybackRatio);
 
   return (
     <div className="p-6 space-y-6">
@@ -146,7 +151,7 @@ export default function ConfigPage() {
                   <Label>初始 USDC</Label>
                   <Input
                     type="number"
-                    value={config.initialLpUsdc}
+                    value={initialLpUsdc}
                     onChange={(e) => setConfig({ initialLpUsdc: parseFloat(e.target.value) || 0 })}
                     min={0}
                     data-testid="input-initial-usdc"
@@ -156,7 +161,7 @@ export default function ConfigPage() {
                   <Label>初始 AF</Label>
                   <Input
                     type="number"
-                    value={config.initialLpAf}
+                    value={initialLpAf}
                     onChange={(e) => setConfig({ initialLpAf: parseFloat(e.target.value) || 0 })}
                     min={0}
                     data-testid="input-initial-af"
@@ -165,7 +170,7 @@ export default function ConfigPage() {
               </div>
               <div className="mt-3 p-3 rounded-md bg-muted">
                 <p className="text-sm text-muted-foreground">
-                  初始币价: ${config.initialLpAf > 0 ? (config.initialLpUsdc / config.initialLpAf).toFixed(4) : 0}
+                  初始币价: ${initialLpAf > 0 ? (initialLpUsdc / initialLpAf).toFixed(4) : 0}
                 </p>
               </div>
             </CardContent>
@@ -179,12 +184,12 @@ export default function ConfigPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label>添加流动池比例: {config.depositLpRatio}%</Label>
+                  <Label>添加流动池比例: {depositLpRatio}%</Label>
                 </div>
                 <Slider
-                  value={[config.depositLpRatio]}
+                  value={[depositLpRatio]}
                   onValueChange={([value]) => {
-                    const maxValue = 100 - config.depositBuybackRatio;
+                    const maxValue = 100 - depositBuybackRatio;
                     setConfig({ depositLpRatio: Math.min(value, maxValue) });
                   }}
                   min={0}
@@ -195,12 +200,12 @@ export default function ConfigPage() {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label>回购 AF 比例: {config.depositBuybackRatio}%</Label>
+                  <Label>回购 AF 比例: {depositBuybackRatio}%</Label>
                 </div>
                 <Slider
-                  value={[config.depositBuybackRatio]}
+                  value={[depositBuybackRatio]}
                   onValueChange={([value]) => {
-                    const maxValue = 100 - config.depositLpRatio;
+                    const maxValue = 100 - depositLpRatio;
                     setConfig({ depositBuybackRatio: Math.min(value, maxValue) });
                   }}
                   min={0}
@@ -212,11 +217,11 @@ export default function ConfigPage() {
               <div className="p-3 rounded-md bg-muted space-y-1">
                 <div className="flex justify-between text-sm">
                   <span>添加流动池</span>
-                  <span className="font-medium">{config.depositLpRatio}%</span>
+                  <span className="font-medium">{depositLpRatio}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>回购 AF</span>
-                  <span className="font-medium">{config.depositBuybackRatio}%</span>
+                  <span className="font-medium">{depositBuybackRatio}%</span>
                 </div>
                 <div className="flex justify-between text-sm border-t pt-1">
                   <span>交易储备金</span>
