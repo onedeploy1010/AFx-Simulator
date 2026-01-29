@@ -3,6 +3,28 @@ import { persist } from "zustand/middleware";
 import type { AFxConfig, StakingOrder, AAMPool, PackageConfig } from "@shared/schema";
 import { defaultConfig, PACKAGE_TIERS } from "@shared/schema";
 
+// Merge saved config with defaults to handle new fields
+const mergeWithDefaults = (savedConfig: Partial<AFxConfig>): AFxConfig => {
+  return {
+    ...defaultConfig,
+    ...savedConfig,
+    // Ensure new fields have defaults if missing from localStorage
+    initialLpUsdc: savedConfig.initialLpUsdc ?? defaultConfig.initialLpUsdc,
+    initialLpAf: savedConfig.initialLpAf ?? defaultConfig.initialLpAf,
+    depositLpRatio: savedConfig.depositLpRatio ?? defaultConfig.depositLpRatio,
+    depositBuybackRatio: savedConfig.depositBuybackRatio ?? defaultConfig.depositBuybackRatio,
+    // Merge package configs properly
+    packageConfigs: savedConfig.packageConfigs?.map((pkg, i) => ({
+      ...defaultConfig.packageConfigs[i],
+      ...pkg,
+      // Ensure release choice fields exist
+      releaseWithdrawPercent: pkg.releaseWithdrawPercent ?? defaultConfig.packageConfigs[i]?.releaseWithdrawPercent ?? 60,
+      releaseKeepPercent: pkg.releaseKeepPercent ?? defaultConfig.packageConfigs[i]?.releaseKeepPercent ?? 20,
+      releaseConvertPercent: pkg.releaseConvertPercent ?? defaultConfig.packageConfigs[i]?.releaseConvertPercent ?? 20,
+    })) ?? defaultConfig.packageConfigs,
+  };
+};
+
 interface ConfigStore {
   config: AFxConfig;
   stakingOrders: StakingOrder[];
@@ -78,6 +100,19 @@ export const useConfigStore = create<ConfigStore>()(
     }),
     {
       name: "afx-config-storage",
+      // Migrate stored config to handle new fields
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<ConfigStore> | undefined;
+        if (!persisted) return currentState;
+        
+        return {
+          ...currentState,
+          ...persisted,
+          config: mergeWithDefaults(persisted.config || {}),
+          aamPool: persisted.aamPool || currentState.aamPool,
+          stakingOrders: persisted.stakingOrders || [],
+        };
+      },
     }
   )
 );

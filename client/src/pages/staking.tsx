@@ -34,7 +34,8 @@ export default function StakingPage() {
   const handleAddOrder = () => {
     const tier = parseInt(selectedTier);
     const count = parseInt(amount) || 1;
-    const days = parseInt(stakingDays) || defaultStakingDays;
+    // When staking is disabled, use 1 day (instant release)
+    const days = config.stakingEnabled ? (parseInt(stakingDays) || defaultStakingDays) : 1;
     const packageConfig = config.packageConfigs.find(p => p.tier === tier);
     
     if (!packageConfig) return;
@@ -50,9 +51,10 @@ export default function StakingPage() {
       });
     }
 
+    const daysText = config.stakingEnabled ? ` (${days}天)` : ' (即时释放)';
     toast({
-      title: "质押订单已添加",
-      description: `成功添加 ${count} 笔 ${tier} USDC 质押订单 (${days}天)`,
+      title: "订单已添加",
+      description: `成功添加 ${count} 笔 ${tier} USDC 订单${daysText}`,
     });
     setAmount("1");
   };
@@ -164,25 +166,26 @@ export default function StakingPage() {
                 data-testid="input-amount"
               />
             </div>
-            <div className="space-y-2 w-28">
-              <Label>质押周期(天)</Label>
-              <Input
-                type="number"
-                value={stakingDays}
-                onChange={(e) => setStakingDays(e.target.value)}
-                min={1}
-                max={365}
-                disabled={!config.stakingEnabled}
-                data-testid="input-staking-days"
-              />
-            </div>
-            <Button onClick={handleAddOrder} disabled={!config.stakingEnabled} data-testid="button-add-order">
+            {config.stakingEnabled && (
+              <div className="space-y-2 w-28">
+                <Label>质押周期(天)</Label>
+                <Input
+                  type="number"
+                  value={stakingDays}
+                  onChange={(e) => setStakingDays(e.target.value)}
+                  min={1}
+                  max={365}
+                  data-testid="input-staking-days"
+                />
+              </div>
+            )}
+            <Button onClick={handleAddOrder} data-testid="button-add-order">
               <Plus className="h-4 w-4 mr-2" />
               添加订单
             </Button>
           {!config.stakingEnabled && (
-            <div className="mt-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-              质押功能已禁用。请在参数配置页面启用质押周期。
+            <div className="mt-4 p-3 rounded-md bg-muted text-muted-foreground text-sm">
+              质押周期已禁用，AF 将立即释放
             </div>
           )}
           </div>
@@ -225,7 +228,7 @@ export default function StakingPage() {
                     <TableHead>质押金额</TableHead>
                     <TableHead>交易金</TableHead>
                     <TableHead>日释放率</TableHead>
-                    <TableHead>质押周期</TableHead>
+                    {config.stakingEnabled && <TableHead>质押周期</TableHead>}
                     <TableHead className="w-16"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -240,7 +243,7 @@ export default function StakingPage() {
                         <TableCell>{formatCurrency(order.amount)}</TableCell>
                         <TableCell>{formatCurrency(order.tradingCapital)}</TableCell>
                         <TableCell>{pkg?.afReleaseRate}%</TableCell>
-                        <TableCell>{order.daysStaked} 天</TableCell>
+                        {config.stakingEnabled && <TableCell>{order.daysStaked} 天</TableCell>}
                         <TableCell>
                           <Button
                             variant="ghost"
