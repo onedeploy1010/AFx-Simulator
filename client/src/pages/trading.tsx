@@ -328,7 +328,7 @@ export default function TradingPage() {
               <ArrowRight className="h-6 w-6 text-muted-foreground" />
               <div className="text-center">
                 <p className="text-2xl font-bold text-red-500">-{formatCurrency(simulation.tradingFee)}</p>
-                <p className="text-xs text-muted-foreground">手续费 ({formatPercent(feeRate)})</p>
+                <p className="text-xs text-muted-foreground">手续费 (毛利润×{formatPercent(feeRate)})</p>
               </div>
               <ArrowRight className="h-6 w-6 text-muted-foreground" />
               <div className="text-center">
@@ -364,7 +364,7 @@ export default function TradingPage() {
               <div className="p-3 rounded-md border">
                 <p className="text-sm text-muted-foreground">手续费总计</p>
                 <p className="text-lg font-semibold">{formatCurrency(simulation.tradingFee)}</p>
-                <p className="text-xs text-muted-foreground">{formatPercent(feeRate)} 费率</p>
+                <p className="text-xs text-muted-foreground">毛利润×{formatPercent(feeRate)}</p>
               </div>
             </div>
           </div>

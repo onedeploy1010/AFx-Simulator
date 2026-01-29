@@ -97,8 +97,8 @@ export function calculateTradingSimulation(
   // Calculate gross profit from trading
   const grossProfit = tradingCapital * profitRate;
   
-  // Trading fee is applied to the trade value
-  const tradingFee = tradingCapital * (tradingFeeRate / 100);
+  // Trading fee is deducted from gross profit (not trading capital)
+  const tradingFee = grossProfit * (tradingFeeRate / 100);
   
   // Net profit after fees
   const netProfit = Math.max(0, grossProfit - tradingFee);
