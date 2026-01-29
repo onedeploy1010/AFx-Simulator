@@ -1,19 +1,17 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/hooks/use-config";
 import { runSimulation, formatNumber, formatCurrency } from "@/lib/calculations";
-import { Play, TrendingUp, Coins, Flame, DollarSign } from "lucide-react";
+import { TrendingUp, Coins, Flame, DollarSign } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function ReleasePage() {
   const { config, stakingOrders, aamPool } = useConfigStore();
   const [simulationDays, setSimulationDays] = useState(30);
-  const [isSimulating, setIsSimulating] = useState(false);
 
   const simulationResults = useMemo(() => {
     if (stakingOrders.length === 0) return [];
@@ -28,11 +26,9 @@ export default function ReleasePage() {
       totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
       avgPrice: simulationResults.reduce((sum, r) => sum + r.afPrice, 0) / simulationResults.length,
       finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || 0,
-      // Exit distribution totals
       totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketAf, 0),
       totalToTradingFee: simulationResults.reduce((sum, r) => sum + r.toTradingFeeAf, 0),
       totalToTradingCapital: simulationResults.reduce((sum, r) => sum + r.toTradingCapitalUsdc, 0),
-      // Fund flow totals
       totalLpUsdc: simulationResults.reduce((sum, r) => sum + r.lpContributionUsdc, 0),
       totalLpAfValue: simulationResults.reduce((sum, r) => sum + r.lpContributionAfValue, 0),
       totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
@@ -148,7 +144,7 @@ export default function ReleasePage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
-                    销毁率 {((totals.totalBurn / totals.totalAfReleased) * 100).toFixed(1)}%
+                    销毁率 {totals.totalAfReleased > 0 ? ((totals.totalBurn / totals.totalAfReleased) * 100).toFixed(1) : 0}%
                   </p>
                 </CardContent>
               </Card>
@@ -177,29 +173,29 @@ export default function ReleasePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">AF 退出分配详情</CardTitle>
-                <CardDescription>用户选择提现/转换后的 AF 流向</CardDescription>
+                <CardDescription>用户选择提现/保留/转换后的 AF 流向 (各配套独立设置)</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">二级市场</p>
                     <p className="text-lg font-semibold">{formatNumber(totals.totalToSecondaryMarket)} AF</p>
-                    <p className="text-xs text-muted-foreground">{config.afExitWithdrawRatio}% 提现比例</p>
+                    <p className="text-xs text-muted-foreground">提现后进入市场</p>
                   </div>
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">销毁 AF</p>
                     <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} AF</p>
-                    <p className="text-xs text-muted-foreground">{config.afExitBurnRatio}% 销毁比例</p>
+                    <p className="text-xs text-muted-foreground">{config.afExitBurnRatio}% 提现销毁比例</p>
                   </div>
                   <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">交易手续费</p>
+                    <p className="text-sm text-muted-foreground">保留为手续费</p>
                     <p className="text-lg font-semibold">{formatNumber(totals.totalToTradingFee)} AF</p>
-                    <p className="text-xs text-muted-foreground">{config.afExitTradingFeeRatio}% 手续费比例</p>
+                    <p className="text-xs text-muted-foreground">保留在平台</p>
                   </div>
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">转换交易金</p>
                     <p className="text-lg font-semibold">{formatCurrency(totals.totalToTradingCapital)}</p>
-                    <p className="text-xs text-muted-foreground">{config.userConvertChoicePercent}% 转换选择</p>
+                    <p className="text-xs text-muted-foreground">{config.afToTradingCapitalRate}x 倍率</p>
                   </div>
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">累计回购</p>

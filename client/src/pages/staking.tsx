@@ -18,12 +18,23 @@ export default function StakingPage() {
   
   const [selectedTier, setSelectedTier] = useState<string>("1000");
   const [amount, setAmount] = useState<string>("1");
-  const [stakingDays, setStakingDays] = useState<string>(config.stakingPeriodDays.toString());
+  
+  const selectedPackage = config.packageConfigs.find(p => p.tier === parseInt(selectedTier));
+  const defaultStakingDays = selectedPackage?.stakingPeriodDays || 30;
+  const [stakingDays, setStakingDays] = useState<string>(defaultStakingDays.toString());
+
+  const handleTierChange = (newTier: string) => {
+    setSelectedTier(newTier);
+    const pkg = config.packageConfigs.find(p => p.tier === parseInt(newTier));
+    if (pkg) {
+      setStakingDays(pkg.stakingPeriodDays.toString());
+    }
+  };
 
   const handleAddOrder = () => {
     const tier = parseInt(selectedTier);
     const count = parseInt(amount) || 1;
-    const days = parseInt(stakingDays) || config.stakingPeriodDays;
+    const days = parseInt(stakingDays) || defaultStakingDays;
     const packageConfig = config.packageConfigs.find(p => p.tier === tier);
     
     if (!packageConfig) return;
@@ -126,7 +137,7 @@ export default function StakingPage() {
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-2 flex-1 min-w-[200px]">
               <Label>配套档位</Label>
-              <Select value={selectedTier} onValueChange={setSelectedTier}>
+              <Select value={selectedTier} onValueChange={handleTierChange}>
                 <SelectTrigger data-testid="select-tier">
                   <SelectValue />
                 </SelectTrigger>

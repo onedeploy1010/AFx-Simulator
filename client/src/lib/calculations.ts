@@ -36,37 +36,43 @@ export function calculateDailyAFRelease(
   }
 }
 
-// Calculate AF exit distribution based on user choice and config ratios
-// All outputs are in AF units except toTradingCapitalAf which is AF amount converted
+// Calculate AF exit distribution based on per-package release choice ratios
+// Inputs: afReleased (AF), afPrice (USDC/AF), packageConfig with release percentages
+// Outputs: AF units for withdraw/keep/burn, USDC for trading capital
 export function calculateAFExitDistribution(
   afReleased: number,
   afPrice: number,
+  packageConfig: { releaseWithdrawPercent: number; releaseKeepPercent: number; releaseConvertPercent: number },
   config: AFxConfig
 ): {
-  toWithdrawAf: number;
-  toConvertAf: number;
-  toBurnAf: number;
-  toTradingFeeAf: number;
-  toSecondaryMarketAf: number;
+  toWithdrawAf: number; // AF sold to secondary market
+  toKeepAf: number; // AF kept as trading fee
+  toConvertAf: number; // AF converted to trading capital
+  toBurnAf: number; // AF burned (from withdraw portion)
+  toSecondaryMarketAf: number; // Net AF to secondary market after burn
   toTradingCapitalUsdc: number; // USDC value of converted AF
 } {
-  // Split by user choice (both in AF)
-  const userWithdrawAf = afReleased * (config.userWithdrawChoicePercent / 100);
-  const userConvertAf = afReleased * (config.userConvertChoicePercent / 100);
+  // Normalize percentages to ensure they sum to 100%
+  const total = packageConfig.releaseWithdrawPercent + packageConfig.releaseKeepPercent + packageConfig.releaseConvertPercent;
+  const normalizer = total > 0 ? 100 / total : 1;
   
-  // Apply exit ratios to withdrawn portion (all in AF)
-  const toSecondaryMarketAf = userWithdrawAf * (config.afExitWithdrawRatio / 100);
-  const toBurnAf = userWithdrawAf * (config.afExitBurnRatio / 100);
-  const toTradingFeeAf = userWithdrawAf * (config.afExitTradingFeeRatio / 100);
+  // Split by release choice (normalized to sum to 100%)
+  const toWithdrawAf = afReleased * ((packageConfig.releaseWithdrawPercent * normalizer) / 100);
+  const toKeepAf = afReleased * ((packageConfig.releaseKeepPercent * normalizer) / 100);
+  const toConvertAf = afReleased * ((packageConfig.releaseConvertPercent * normalizer) / 100);
+  
+  // From withdrawn portion, some gets burned
+  const toBurnAf = toWithdrawAf * (config.afExitBurnRatio / 100);
+  const toSecondaryMarketAf = toWithdrawAf - toBurnAf;
   
   // Convert AF to USDC for trading capital (at current AF price × rate multiplier)
-  const toTradingCapitalUsdc = userConvertAf * afPrice * config.afToTradingCapitalRate;
+  const toTradingCapitalUsdc = toConvertAf * afPrice * config.afToTradingCapitalRate;
   
   return {
-    toWithdrawAf: userWithdrawAf,
-    toConvertAf: userConvertAf,
+    toWithdrawAf,
+    toKeepAf,
+    toConvertAf,
     toBurnAf,
-    toTradingFeeAf,
     toSecondaryMarketAf,
     toTradingCapitalUsdc,
   };
@@ -226,48 +232,56 @@ export function runSimulation(
     let totalLpContributionAf = 0;
     
     for (const order of orders) {
-      // Check if staking period has passed
+      // Get package config for this order
+      const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
+      if (!packageConfig) continue;
+      
+      // Check if staking period has passed (use order's daysStaked which can be customized)
       if (!config.stakingEnabled || day > order.daysStaked) continue;
+      
+      // Check if trading has started (releaseStartsTradingDays)
+      const canTrade = day > config.releaseStartsTradingDays;
       
       // Calculate AF release for this order
       const afReleased = calculateDailyAFRelease(order, config, currentPool.afPrice);
       totalAfReleased += afReleased;
       
-      // Calculate exit distribution with current AF price
-      const exitDist = calculateAFExitDistribution(afReleased, currentPool.afPrice, config);
+      // Calculate exit distribution using per-package release choice
+      const exitDist = calculateAFExitDistribution(afReleased, currentPool.afPrice, packageConfig, config);
       totalBurn += exitDist.toBurnAf;
       totalToTradingCapital += exitDist.toTradingCapitalUsdc;
       totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
-      totalToTradingFeeFromExit += exitDist.toTradingFeeAf;
+      totalToTradingFeeFromExit += exitDist.toKeepAf; // AF kept as trading fee
       
-      // Simulate trading with trading capital (configurable daily volume %)
-      const dailyTradingVolume = order.tradingCapital * (config.dailyTradingVolumePercent / 100);
-      totalTradingVolume += dailyTradingVolume;
-      
-      const feeRate = calculateTradingFeeRate(
-        order.amount,
-        10000,
-        config.tradingFeeRateMin,
-        config.tradingFeeRateMax
-      );
-      
-      // Calculate trading with configurable profit rate
-      const tradingSim = calculateTradingSimulation(
-        dailyTradingVolume,
-        config.tradingProfitRatePercent / 100, // Convert to decimal
-        feeRate,
-        config.userProfitShareTier,
-        config
-      );
-      
-      totalUserProfit += tradingSim.userProfit;
-      totalPlatformProfit += tradingSim.platformProfit;
-      totalBrokerProfit += tradingSim.brokerProfit;
-      totalTradingFee += tradingSim.tradingFee;
-      // Fund flow split from trading capital (not fees)
-      totalBuyback += tradingSim.buybackAmount;
-      totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
-      totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+      // Only simulate trading if trading period has started
+      if (canTrade) {
+        // Simulate trading with trading capital (configurable daily volume %)
+        const dailyTradingVolume = order.tradingCapital * (config.dailyTradingVolumePercent / 100);
+        totalTradingVolume += dailyTradingVolume;
+        
+        // Use per-package fee rate and profit rate
+        const feeRate = packageConfig.tradingFeeRate;
+        const profitRate = packageConfig.tradingProfitRate / 100;
+        const profitSharePercent = packageConfig.profitSharePercent;
+        
+        // Calculate trading with per-package parameters
+        const tradingSim = calculateTradingSimulation(
+          dailyTradingVolume,
+          profitRate,
+          feeRate,
+          profitSharePercent,
+          config
+        );
+        
+        totalUserProfit += tradingSim.userProfit;
+        totalPlatformProfit += tradingSim.platformProfit;
+        totalBrokerProfit += tradingSim.brokerProfit;
+        totalTradingFee += tradingSim.tradingFee;
+        // Fund flow split from trading capital (not fees)
+        totalBuyback += tradingSim.buybackAmount;
+        totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
+        totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+      }
     }
     
     // Update pool - LP contributions now based on trading capital, not fees

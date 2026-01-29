@@ -5,36 +5,35 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { calculateTradingSimulation, calculateTradingFeeRate, formatNumber, formatCurrency, formatPercent } from "@/lib/calculations";
+import { calculateTradingSimulation, formatNumber, formatCurrency, formatPercent } from "@/lib/calculations";
 import { Calculator, TrendingUp, Users, Building, Coins, ArrowRight } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { PACKAGE_TIERS } from "@shared/schema";
 
 export default function TradingPage() {
   const { config, stakingOrders } = useConfigStore();
   const [tradingCapital, setTradingCapital] = useState(10000);
-  const [profitRate, setProfitRate] = useState(5);
-  const [stakingAmount, setStakingAmount] = useState(1000);
+  const [selectedTier, setSelectedTier] = useState<string>("1000");
 
   const totalStaked = stakingOrders.reduce((sum, o) => sum + o.amount, 0);
   const totalTradingCapital = stakingOrders.reduce((sum, o) => sum + o.tradingCapital, 0);
 
-  const feeRate = calculateTradingFeeRate(
-    stakingAmount,
-    10000,
-    config.tradingFeeRateMin,
-    config.tradingFeeRateMax
-  );
+  const selectedPackage = config.packageConfigs.find(p => p.tier === parseInt(selectedTier));
+  const feeRate = selectedPackage?.tradingFeeRate || 5;
+  const profitRate = selectedPackage?.tradingProfitRate || 3;
+  const profitSharePercent = selectedPackage?.profitSharePercent || 60;
 
   const simulation = useMemo(() => {
     return calculateTradingSimulation(
       tradingCapital,
       profitRate / 100,
       feeRate,
-      config.userProfitShareTier,
+      profitSharePercent,
       config
     );
-  }, [tradingCapital, profitRate, feeRate, config]);
+  }, [tradingCapital, profitRate, feeRate, profitSharePercent, config]);
   
   const grossProfit = tradingCapital * (profitRate / 100);
   const netProfit = grossProfit - simulation.tradingFee;
@@ -51,13 +50,12 @@ export default function TradingPage() {
     { name: "外汇储备金", value: simulation.reserveAmount, color: "hsl(var(--chart-3))" },
   ];
 
-  const feeRateData = [
-    { stake: 0, rate: config.tradingFeeRateMax },
-    { stake: 2500, rate: config.tradingFeeRateMax - (config.tradingFeeRateMax - config.tradingFeeRateMin) * 0.25 },
-    { stake: 5000, rate: config.tradingFeeRateMax - (config.tradingFeeRateMax - config.tradingFeeRateMin) * 0.5 },
-    { stake: 7500, rate: config.tradingFeeRateMax - (config.tradingFeeRateMax - config.tradingFeeRateMin) * 0.75 },
-    { stake: 10000, rate: config.tradingFeeRateMin },
-  ];
+  const packageFeeData = config.packageConfigs.map(pkg => ({
+    tier: `${pkg.tier}`,
+    feeRate: pkg.tradingFeeRate,
+    profitRate: pkg.tradingProfitRate,
+    profitShare: pkg.profitSharePercent,
+  }));
 
   return (
     <div className="p-6 space-y-6">
@@ -77,9 +75,28 @@ export default function TradingPage() {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-lg">模拟参数</CardTitle>
-            <CardDescription>设置交易金额和质押量</CardDescription>
+            <CardDescription>选择配套档位和交易金额</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <Label>配套档位</Label>
+              <Select value={selectedTier} onValueChange={setSelectedTier}>
+                <SelectTrigger data-testid="select-package-tier">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PACKAGE_TIERS.map((tier) => {
+                    const pkg = config.packageConfigs.find(p => p.tier === tier);
+                    return (
+                      <SelectItem key={tier} value={tier.toString()}>
+                        {tier} USDC (手续费{pkg?.tradingFeeRate}%, 利润{pkg?.tradingProfitRate}%)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-3">
               <Label>交易本金</Label>
               <Input
@@ -103,40 +120,14 @@ export default function TradingPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label>交易利润率: {profitRate}%</Label>
-              <Slider
-                value={[profitRate]}
-                onValueChange={([v]) => setProfitRate(v)}
-                min={1}
-                max={20}
-                step={0.5}
-                data-testid="slider-profit-rate"
-              />
-              <p className="text-xs text-muted-foreground">
-                毛利润: {formatCurrency(grossProfit)}
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <Label>质押量: {formatCurrency(stakingAmount)}</Label>
-              <Slider
-                value={[stakingAmount]}
-                onValueChange={([v]) => setStakingAmount(v)}
-                min={0}
-                max={10000}
-                step={100}
-                data-testid="slider-staking"
-              />
-              <p className="text-xs text-muted-foreground">
-                质押越多，手续费率越低
-              </p>
-            </div>
-
             <div className="p-4 rounded-md bg-muted space-y-2">
               <div className="flex justify-between text-sm">
-                <span>当前手续费率</span>
+                <span>手续费率</span>
                 <span className="font-medium">{formatPercent(feeRate)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>利润率</span>
+                <span className="font-medium">{formatPercent(profitRate)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>手续费金额</span>
@@ -144,7 +135,7 @@ export default function TradingPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span>用户分润比例</span>
-                <span className="font-medium">{config.userProfitShareTier}%</span>
+                <span className="font-medium">{profitSharePercent}%</span>
               </div>
             </div>
           </CardContent>
@@ -152,16 +143,16 @@ export default function TradingPage() {
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-lg">手续费率曲线</CardTitle>
-            <CardDescription>质押量与手续费率关系</CardDescription>
+            <CardTitle className="text-lg">各配套交易参数</CardTitle>
+            <CardDescription>不同配套档位的手续费率和利润率</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={feeRateData}>
+                <BarChart data={packageFeeData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis
-                    dataKey="stake"
+                    dataKey="tier"
                     tick={{ fontSize: 12 }}
                     tickFormatter={(v) => `$${v}`}
                     className="text-muted-foreground"
@@ -169,7 +160,7 @@ export default function TradingPage() {
                   <YAxis
                     tick={{ fontSize: 12 }}
                     tickFormatter={(v) => `${v}%`}
-                    domain={[0, 10]}
+                    domain={[0, 15]}
                     className="text-muted-foreground"
                   />
                   <Tooltip
@@ -178,10 +169,15 @@ export default function TradingPage() {
                       borderColor: 'hsl(var(--border))',
                       borderRadius: '6px',
                     }}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, '手续费率']}
-                    labelFormatter={(label) => `质押 $${label}`}
+                    formatter={(value: number, name: string) => [
+                      `${value.toFixed(1)}%`,
+                      name === 'feeRate' ? '手续费率' : name === 'profitRate' ? '利润率' : '分润比例'
+                    ]}
+                    labelFormatter={(label) => `配套 $${label}`}
                   />
-                  <Bar dataKey="rate" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Legend formatter={(value) => value === 'feeRate' ? '手续费率' : value === 'profitRate' ? '利润率' : '分润比例'} />
+                  <Bar dataKey="feeRate" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="profitRate" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -200,7 +196,7 @@ export default function TradingPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              {config.userProfitShareTier}% 分润 | 净利润的 {netProfit > 0 ? formatPercent(simulation.userProfit / netProfit * 100) : '0%'}
+              {profitSharePercent}% 分润 | 净利润的 {netProfit > 0 ? formatPercent(simulation.userProfit / netProfit * 100) : '0%'}
             </p>
           </CardContent>
         </Card>
@@ -277,7 +273,7 @@ export default function TradingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">资金流向</CardTitle>
-            <CardDescription>交易手续费的分配</CardDescription>
+            <CardDescription>交易资金的分配</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">

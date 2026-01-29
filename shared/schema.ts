@@ -20,6 +20,14 @@ export const packageConfigSchema = z.object({
   tier: z.number(),
   afReleaseRate: z.number().min(0).max(100), // AF release interest rate per day
   tradingCapitalMultiplier: z.number().min(1), // Principal × multiplier
+  stakingPeriodDays: z.number().min(1), // Staking period for this package
+  tradingFeeRate: z.number().min(0).max(100), // Trading fee rate for this package
+  tradingProfitRate: z.number().min(-100).max(100), // Expected profit rate for this package
+  profitSharePercent: z.number().min(0).max(100), // User profit share for this package
+  // Release choice distribution (must sum to 100%)
+  releaseWithdrawPercent: z.number().min(0).max(100), // % to withdraw (sell)
+  releaseKeepPercent: z.number().min(0).max(100), // % to keep as fee
+  releaseConvertPercent: z.number().min(0).max(100), // % to convert to trading capital
 });
 
 export type PackageConfig = z.infer<typeof packageConfigSchema>;
@@ -32,35 +40,29 @@ export const afxConfigSchema = z.object({
   // Package configs (per tier)
   packageConfigs: z.array(packageConfigSchema),
   
-  // Staking settings
-  stakingEnabled: z.boolean(),
-  stakingPeriodDays: z.number().min(1),
+  // Core settings
+  stakingEnabled: z.boolean(), // Whether AF release period is enabled
+  releaseStartsTradingDays: z.number().min(0), // Days after staking before trading begins
   
-  // Trading simulation parameters
-  dailyTradingVolumePercent: z.number().min(0).max(100), // % of trading capital traded daily
-  tradingProfitRatePercent: z.number().min(-100).max(100), // Expected profit rate per trade
+  // Initial LP pool settings
+  initialLpUsdc: z.number().min(0), // Initial USDC in LP pool
+  initialLpAf: z.number().min(0), // Initial AF in LP pool
   
-  // Trading fee rate (varies by staking amount: 1%-8%)
-  tradingFeeRateMin: z.number().min(0).max(100),
-  tradingFeeRateMax: z.number().min(0).max(100),
+  // USDC deposit allocation (from user deposits)
+  depositLpRatio: z.number().min(0).max(100), // % of deposit to LP (add liquidity)
+  depositBuybackRatio: z.number().min(0).max(100), // % of deposit to buyback AF
+  // Remaining goes to trading reserve (calculated as 100 - lpRatio - buybackRatio)
   
-  // User profit share tier
-  userProfitShareTier: z.number().min(60).max(85),
+  // Daily trading volume percent (how much of trading capital is traded daily)
+  dailyTradingVolumePercent: z.number().min(0).max(100),
   
-  // AF release exit ratios
-  afExitWithdrawRatio: z.number().min(0).max(100), // % to secondary market
-  afExitBurnRatio: z.number().min(0).max(100), // % destroyed
-  afExitTradingFeeRatio: z.number().min(0).max(100), // % kept as trading fee
-  afExitConvertRatio: z.number().min(0).max(100), // % converted to trading capital
-  
-  // AF to trading capital conversion rate
+  // AF to trading capital conversion rate (multiplier when converting AF to trading capital)
   afToTradingCapitalRate: z.number().min(0),
   
-  // User release choice distribution
-  userWithdrawChoicePercent: z.number().min(0).max(100),
-  userConvertChoicePercent: z.number().min(0).max(100),
+  // Burn ratio for withdrawn AF (% of withdrawn AF that gets burned)
+  afExitBurnRatio: z.number().min(0).max(100),
   
-  // Trading fund flow ratios
+  // Trading fund flow ratios (from trading capital)
   lpPoolUsdcRatio: z.number().min(0).max(100), // % USDC to LP
   lpPoolAfRatio: z.number().min(0).max(100), // % AF to LP
   buybackRatio: z.number().min(0).max(100), // % to buyback
@@ -147,21 +149,24 @@ export const defaultConfig: AFxConfig = {
     tier,
     afReleaseRate: tier === 100 ? 0.5 : tier === 500 ? 0.6 : tier === 1000 ? 0.7 : tier === 3000 ? 0.8 : tier === 5000 ? 0.9 : 1.0,
     tradingCapitalMultiplier: tier === 100 ? 2 : tier === 500 ? 2.5 : tier === 1000 ? 3 : tier === 3000 ? 3.5 : tier === 5000 ? 4 : 5,
+    stakingPeriodDays: tier === 100 ? 30 : tier === 500 ? 45 : tier === 1000 ? 60 : tier === 3000 ? 90 : tier === 5000 ? 120 : 180,
+    tradingFeeRate: tier === 100 ? 8 : tier === 500 ? 6 : tier === 1000 ? 5 : tier === 3000 ? 4 : tier === 5000 ? 2 : 1,
+    tradingProfitRate: tier === 100 ? 3 : tier === 500 ? 4 : tier === 1000 ? 5 : tier === 3000 ? 6 : tier === 5000 ? 7 : 8,
+    profitSharePercent: tier === 100 ? 60 : tier === 500 ? 65 : tier === 1000 ? 70 : tier === 3000 ? 75 : tier === 5000 ? 80 : 85,
+    releaseWithdrawPercent: 60, // 60% withdraw (sell to secondary market)
+    releaseKeepPercent: 20, // 20% keep as trading fee
+    releaseConvertPercent: 20, // 20% convert to trading capital
   })),
   stakingEnabled: true,
-  stakingPeriodDays: 30,
+  releaseStartsTradingDays: 0, // Trading starts immediately
+  initialLpUsdc: 1000000, // 1M USDC initial LP
+  initialLpAf: 10000000, // 10M AF initial LP
+  depositLpRatio: 30, // 30% of deposits to LP
+  depositBuybackRatio: 20, // 20% of deposits to buyback
+  // Remaining 50% goes to trading reserve
   dailyTradingVolumePercent: 10, // 10% of trading capital traded daily
-  tradingProfitRatePercent: 5, // 5% profit rate per trade
-  tradingFeeRateMin: 1,
-  tradingFeeRateMax: 8,
-  userProfitShareTier: 70,
-  afExitWithdrawRatio: 80,
-  afExitBurnRatio: 20,
-  afExitTradingFeeRatio: 0,
-  afExitConvertRatio: 0,
   afToTradingCapitalRate: 1.5,
-  userWithdrawChoicePercent: 60,
-  userConvertChoicePercent: 40,
+  afExitBurnRatio: 20, // 20% of withdrawn AF gets burned
   lpPoolUsdcRatio: 30,
   lpPoolAfRatio: 30,
   buybackRatio: 20,
