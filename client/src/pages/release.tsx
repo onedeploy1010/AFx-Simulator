@@ -36,7 +36,7 @@ export default function ReleasePage() {
       totalBrokerProfit: simulationResults.reduce((sum, r) => sum + r.brokerProfit, 0),
       totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
       avgPrice: simulationResults.reduce((sum, r) => sum + r.afPrice, 0) / simulationResults.length,
-      initialPrice: aamPool.afPrice,
+      initialPrice: config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : aamPool.afPrice,
       finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || 0,
       totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketAf, 0),
       totalToTradingFee: simulationResults.reduce((sum, r) => sum + r.toTradingFeeAf, 0),
@@ -45,8 +45,11 @@ export default function ReleasePage() {
       totalLpAfValue: simulationResults.reduce((sum, r) => sum + r.lpContributionAfValue, 0),
       totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
       totalReserve: simulationResults.reduce((sum, r) => sum + r.reserveAmountUsdc, 0),
+      // Revenue breakdown
+      totalAfSellingRevenue: simulationResults.reduce((sum, r) => sum + r.afSellingRevenueUsdc, 0),
+      totalForexProfit: simulationResults.reduce((sum, r) => sum + r.userProfit, 0),
     };
-  }, [simulationResults, aamPool.afPrice]);
+  }, [simulationResults, config.initialLpUsdc, config.initialLpAf, aamPool.afPrice]);
 
   // Build chart data with cumulative values and initial price at day 0
   const chartData = useMemo(() => {
@@ -58,12 +61,16 @@ export default function ReleasePage() {
     let cumBrokerProfit = 0;
     let cumWithdrawAf = 0;
     let cumRewardAf = 0;
-    
+    let cumAfSellingRevenue = 0;
+    let cumForexProfit = 0;
+
+    const lpInitialPrice = config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : aamPool.afPrice;
+
     // Start with day 0 (initial state)
     const data = [{
       day: 0,
       dayLabel: 'Day 0',
-      afPrice: aamPool.afPrice,
+      afPrice: lpInitialPrice,
       afReleased: 0,
       userProfit: 0,
       cumAfReleased: 0,
@@ -72,6 +79,9 @@ export default function ReleasePage() {
       cumBrokerProfit: 0,
       cumWithdrawAf: 0,
       cumRewardAf: 0,
+      cumAfSellingRevenue: 0,
+      cumForexProfit: 0,
+      cumTotalRevenue: 0,
     }];
     
     for (const r of simulationResults) {
@@ -82,7 +92,9 @@ export default function ReleasePage() {
       cumWithdrawAf += r.toSecondaryMarketAf;
       // Reward AF = total released - burned - kept as fee
       cumRewardAf += r.afReleased - r.burnAmountAf;
-      
+      cumAfSellingRevenue += r.afSellingRevenueUsdc;
+      cumForexProfit += r.userProfit;
+
       data.push({
         day: r.day,
         dayLabel: `Day ${r.day}`,
@@ -95,11 +107,14 @@ export default function ReleasePage() {
         cumBrokerProfit,
         cumWithdrawAf,
         cumRewardAf,
+        cumAfSellingRevenue,
+        cumForexProfit,
+        cumTotalRevenue: cumForexProfit + cumAfSellingRevenue,
       });
     }
-    
+
     return data;
-  }, [simulationResults, aamPool.afPrice]);
+  }, [simulationResults, config.initialLpUsdc, config.initialLpAf, aamPool.afPrice]);
 
   // Calculate per-order release progress for current simulation day (filtered by selection)
   const orderProgress = useMemo(() => {
@@ -210,6 +225,54 @@ export default function ReleasePage() {
         <>
           {totals && (
             <>
+              {/* Customer Revenue Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-green-500/30 bg-green-500/5">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      外汇交易收益
+                    </CardDescription>
+                    <CardTitle className="text-xl text-green-500">{formatCurrency(totals.totalForexProfit)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatCurrency(totals.totalForexProfit / simulationDays)}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-blue-500/30 bg-blue-500/5">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Coins className="h-4 w-4" />
+                      卖AF代币收益
+                    </CardDescription>
+                    <CardTitle className="text-xl text-blue-500">{formatCurrency(totals.totalAfSellingRevenue)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatCurrency(totals.totalAfSellingRevenue / simulationDays)} | 提取 {formatNumber(totals.totalToSecondaryMarket)} AF
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-yellow-500/30 bg-yellow-500/5">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      客户总收益
+                    </CardDescription>
+                    <CardTitle className="text-xl text-yellow-500">{formatCurrency(totals.totalForexProfit + totals.totalAfSellingRevenue)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatCurrency((totals.totalForexProfit + totals.totalAfSellingRevenue) / simulationDays)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
@@ -260,21 +323,6 @@ export default function ReleasePage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4" />
-                      累计客户利润
-                    </CardDescription>
-                    <CardTitle className="text-xl text-green-500">{formatCurrency(totals.totalUserProfit)}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground">
-                      日均 {formatCurrency(totals.totalUserProfit / simulationDays)}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
                       累计平台分润
                     </CardDescription>
                     <CardTitle className="text-xl">{formatCurrency(totals.totalPlatformProfit)}</CardTitle>
@@ -300,16 +348,14 @@ export default function ReleasePage() {
                     </p>
                   </CardContent>
                 </Card>
-              </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <Flame className="h-4 w-4" />
-                      累计销毁
+                      累计销毁 AF
                     </CardDescription>
-                    <CardTitle className="text-xl">{formatNumber(totals.totalBurn)} AF</CardTitle>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalBurn)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
@@ -317,14 +363,16 @@ export default function ReleasePage() {
                     </p>
                   </CardContent>
                 </Card>
+              </div>
 
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardDescription>初始币价</CardDescription>
+                    <CardDescription>初始币价 (LP设置)</CardDescription>
                     <CardTitle className="text-xl">${totals.initialPrice.toFixed(6)}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-muted-foreground">Day 0</p>
+                    <p className="text-xs text-muted-foreground">Day 0 | {formatCurrency(config.initialLpUsdc)} / {formatNumber(config.initialLpAf, 0)} AF</p>
                   </CardContent>
                 </Card>
 
@@ -423,50 +471,79 @@ export default function ReleasePage() {
                       const pkg = config.packageConfigs.find(p => p.tier === progress.packageTier);
                       if (!pkg) return null;
                       const multiplier = pkg.tradingCapitalMultiplier;
-                      const afValueUsdc = progress.totalAfValue;
-                      const convertedTradingCapital = afValueUsdc * multiplier;
                       const dailyVolume = progress.tradingCapital * (config.dailyTradingVolumePercent / 100);
                       const dailyProfit = dailyVolume * (pkg.tradingProfitRate / 100);
                       const dailyFee = dailyProfit * (pkg.tradingFeeRate / 100);
                       const dailyNetProfit = dailyProfit - dailyFee;
                       const userDailyProfit = dailyNetProfit * (pkg.profitSharePercent / 100);
-                      const periodProfit = userDailyProfit * progress.currentDay;
-                      
+                      const periodForexProfit = userDailyProfit * progress.currentDay;
+
+                      // AF selling revenue: withdrawn AF sold to LP pool
+                      const withdrawPercent = pkg.releaseWithdrawPercent;
+                      const totalPct = pkg.releaseWithdrawPercent + pkg.releaseKeepPercent + pkg.releaseConvertPercent;
+                      const normalizer = totalPct > 0 ? 100 / totalPct : 1;
+                      const withdrawnAf = progress.totalAfReleased * ((withdrawPercent * normalizer) / 100);
+                      const burnedAf = withdrawnAf * (config.afExitBurnRatio / 100);
+                      const soldAf = withdrawnAf - burnedAf;
+                      // Use average price for estimation
+                      const currentAfPrice = simulationResults.length > 0
+                        ? simulationResults[Math.min(progress.currentDay - 1, simulationResults.length - 1)]?.afPrice || aamPool.afPrice
+                        : aamPool.afPrice;
+                      const afSellingRevenue = soldAf * currentAfPrice;
+
+                      const totalRevenue = periodForexProfit + afSellingRevenue;
+
                       return (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t bg-muted/50 p-3 rounded-md">
-                          <div>
-                            <p className="text-xs text-muted-foreground">交易本金倍数</p>
-                            <p className="text-sm font-medium text-primary">{multiplier}x</p>
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t bg-muted/50 p-3 rounded-md">
+                            <div>
+                              <p className="text-xs text-muted-foreground">交易本金倍数</p>
+                              <p className="text-sm font-medium text-primary">{multiplier}x</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">交易本金</p>
+                              <p className="text-sm font-medium">{formatCurrency(progress.tradingCapital)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">日交易量</p>
+                              <p className="text-sm font-medium">{formatCurrency(dailyVolume)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">日外汇收益</p>
+                              <p className="text-sm font-medium text-green-500">{formatCurrency(userDailyProfit)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">利润率</p>
+                              <p className="text-sm font-medium">{pkg.tradingProfitRate}%</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">手续费率</p>
+                              <p className="text-sm font-medium">{pkg.tradingFeeRate}%</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">分润比例</p>
+                              <p className="text-sm font-medium">{pkg.profitSharePercent}%</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">提取AF数量</p>
+                              <p className="text-sm font-medium">{formatNumber(soldAf)} AF</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">交易本金</p>
-                            <p className="text-sm font-medium">{formatCurrency(progress.tradingCapital)}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t">
+                            <div className="p-2 rounded bg-green-500/10 border border-green-500/20">
+                              <p className="text-xs text-muted-foreground">外汇交易收益</p>
+                              <p className="text-sm font-bold text-green-500">{formatCurrency(periodForexProfit)}</p>
+                            </div>
+                            <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                              <p className="text-xs text-muted-foreground">卖AF代币收益</p>
+                              <p className="text-sm font-bold text-blue-500">{formatCurrency(afSellingRevenue)}</p>
+                            </div>
+                            <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
+                              <p className="text-xs text-muted-foreground">{progress.currentDay}天客户总收益</p>
+                              <p className="text-sm font-bold text-yellow-500">{formatCurrency(totalRevenue)}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">日交易量</p>
-                            <p className="text-sm font-medium">{formatCurrency(dailyVolume)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">日用户收益</p>
-                            <p className="text-sm font-medium text-green-500">{formatCurrency(userDailyProfit)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">利润率</p>
-                            <p className="text-sm font-medium">{pkg.tradingProfitRate}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">手续费率</p>
-                            <p className="text-sm font-medium">{pkg.tradingFeeRate}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">分润比例</p>
-                            <p className="text-sm font-medium">{pkg.profitSharePercent}%</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">{progress.currentDay}天累计收益</p>
-                            <p className="text-sm font-medium text-green-500">{formatCurrency(periodProfit)}</p>
-                          </div>
-                        </div>
+                        </>
                       );
                     })()}
                   </div>
@@ -655,8 +732,8 @@ export default function ReleasePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">累计利润分配</CardTitle>
-                <CardDescription>客户、平台、经纪人累计利润</CardDescription>
+                <CardTitle className="text-lg">累计客户收益拆分</CardTitle>
+                <CardDescription>外汇交易收益 + 卖AF代币收益 = 客户总收益</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -664,8 +741,8 @@ export default function ReleasePage() {
                     <AreaChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                      <YAxis 
-                        tick={{ fontSize: 12 }} 
+                      <YAxis
+                        tick={{ fontSize: 12 }}
                         className="text-muted-foreground"
                         tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`}
                       />
@@ -681,24 +758,24 @@ export default function ReleasePage() {
                       <Legend />
                       <Area
                         type="monotone"
-                        dataKey="cumUserProfit"
-                        name="累计客户利润"
+                        dataKey="cumTotalRevenue"
+                        name="客户总收益"
+                        stroke="#eab308"
+                        fill="rgba(234, 179, 8, 0.15)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="cumForexProfit"
+                        name="外汇交易收益"
                         stroke="hsl(var(--chart-2))"
                         fill="hsl(var(--chart-2) / 0.3)"
                       />
                       <Area
                         type="monotone"
-                        dataKey="cumPlatformProfit"
-                        name="累计平台分润"
-                        stroke="hsl(var(--chart-1))"
-                        fill="hsl(var(--chart-1) / 0.3)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="cumBrokerProfit"
-                        name="累计经纪人分润"
-                        stroke="hsl(var(--chart-4))"
-                        fill="hsl(var(--chart-4) / 0.3)"
+                        dataKey="cumAfSellingRevenue"
+                        name="卖AF代币收益"
+                        stroke="#3b82f6"
+                        fill="rgba(59, 130, 246, 0.2)"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -742,19 +819,19 @@ export default function ReleasePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">每日用户收益</CardTitle>
-              <CardDescription>每日用户收益趋势（从第1天开始）</CardDescription>
+              <CardTitle className="text-lg">累计平台与经纪人分润</CardTitle>
+              <CardDescription>平台和经纪人累计利润</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData.slice(1)}>
+                  <AreaChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                    <YAxis 
-                      tick={{ fontSize: 12 }} 
+                    <YAxis
+                      tick={{ fontSize: 12 }}
                       className="text-muted-foreground"
-                      tickFormatter={(v) => `$${v.toFixed(0)}`}
+                      tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`}
                     />
                     <Tooltip
                       contentStyle={{
@@ -765,15 +842,22 @@ export default function ReleasePage() {
                       formatter={(value: number) => formatCurrency(value)}
                       labelFormatter={(label) => `Day ${label}`}
                     />
-                    <Line
+                    <Legend />
+                    <Area
                       type="monotone"
-                      dataKey="userProfit"
-                      name="每日用户收益"
-                      stroke="hsl(var(--chart-2))"
-                      strokeWidth={2}
-                      dot={false}
+                      dataKey="cumPlatformProfit"
+                      name="累计平台分润"
+                      stroke="hsl(var(--chart-1))"
+                      fill="hsl(var(--chart-1) / 0.3)"
                     />
-                  </LineChart>
+                    <Area
+                      type="monotone"
+                      dataKey="cumBrokerProfit"
+                      name="累计经纪人分润"
+                      stroke="hsl(var(--chart-4))"
+                      fill="hsl(var(--chart-4) / 0.3)"
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
@@ -802,8 +886,16 @@ export default function ReleasePage() {
                           <span>${result.afPrice.toFixed(4)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">收益</span>
+                          <span className="text-muted-foreground">外汇收益</span>
                           <span className="text-green-500">{formatCurrency(result.userProfit)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">卖AF收益</span>
+                          <span className="text-blue-500">{formatCurrency(result.afSellingRevenueUsdc)}</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span className="text-muted-foreground">总收益</span>
+                          <span className="text-yellow-500">{formatCurrency(result.userProfit + result.afSellingRevenueUsdc)}</span>
                         </div>
                       </div>
                     </div>

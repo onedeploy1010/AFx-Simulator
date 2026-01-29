@@ -108,6 +108,8 @@ export const dailySimulationSchema = z.object({
   toSecondaryMarketAf: z.number(), // AF sold to secondary market
   toTradingFeeAf: z.number(), // AF kept as trading fee
   toTradingCapitalUsdc: z.number(), // Converted to trading capital
+  // AF selling revenue (USDC received from selling withdrawn AF to LP pool)
+  afSellingRevenueUsdc: z.number(),
   // Fund flow tracking (from trading capital)
   lpContributionUsdc: z.number(), // USDC added to LP pool
   lpContributionAfValue: z.number(), // AF value added to LP pool (in USDC)

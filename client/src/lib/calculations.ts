@@ -248,6 +248,7 @@ export function runSimulation(
     let totalTradingVolume = 0;
     let totalLpContributionUsdc = 0;
     let totalLpContributionAf = 0;
+    let totalAfSellingRevenue = 0;
     
     for (const order of orders) {
       // Get package config for this order
@@ -270,7 +271,10 @@ export function runSimulation(
       totalToTradingCapital += exitDist.toTradingCapitalUsdc;
       totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
       totalToTradingFeeFromExit += exitDist.toKeepAf; // AF kept as trading fee
-      
+
+      // Calculate USDC revenue from selling withdrawn AF to LP pool
+      totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
+
       // Only simulate trading if trading period has started
       if (canTrade) {
         // Calculate trading capital dynamically based on current config
@@ -336,6 +340,8 @@ export function runSimulation(
       toSecondaryMarketAf: totalToSecondaryMarket, // AF sold to pool
       toTradingFeeAf: totalToTradingFeeFromExit, // AF kept as trading fee
       toTradingCapitalUsdc: totalToTradingCapital, // Already in USDC from calculation
+      // AF selling revenue (USDC received from selling withdrawn AF)
+      afSellingRevenueUsdc: totalAfSellingRevenue,
       // Fund flow outputs (all in USDC)
       lpContributionUsdc: totalLpContributionUsdc,
       lpContributionAfValue: totalLpContributionAf, // USDC value of AF added to LP
