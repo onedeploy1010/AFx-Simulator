@@ -93,7 +93,10 @@ export default function StakingPage() {
             variant="outline" 
             onClick={() => {
               resetAAMPool();
-              toast({ title: "AAM池已重置", description: "价格已恢复到初始状态" });
+              toast({ 
+                title: "AAM池已重置", 
+                description: `价格: $${(config.initialLpUsdc / config.initialLpAf).toFixed(6)} (${formatCurrency(config.initialLpUsdc)} / ${formatNumber(config.initialLpAf)} AF)` 
+              });
             }}
             data-testid="button-reset-aam"
           >
@@ -164,7 +167,13 @@ export default function StakingPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                初始: ${initialPrice.toFixed(6)} | 累计回购: {formatCurrency(aamPool.totalBuyback)}
+                初始: ${initialPrice.toFixed(6)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                LP池: {formatCurrency(aamPool.usdcBalance)} / {formatNumber(aamPool.afBalance)} AF
+              </p>
+              <p className="text-xs text-muted-foreground">
+                累计回购: {formatCurrency(aamPool.totalBuyback)}
               </p>
             </div>
           </CardContent>

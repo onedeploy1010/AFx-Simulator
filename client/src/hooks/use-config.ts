@@ -99,25 +99,15 @@ export const useConfigStore = create<ConfigStore>()(
           const toLp = depositAmount * lpRatio;
           const toBuyback = depositAmount * buybackRatio;
           
-          // Debug logging
-          console.log('Adding order:', {
-            depositAmount,
-            lpRatio: state.config.depositLpRatio,
-            buybackRatio: state.config.depositBuybackRatio,
-            toLp,
-            toBuyback,
-            currentPool: state.aamPool,
-          });
-          
           // Update AAM pool
           let newPool = { ...state.aamPool };
           
-          // Add USDC to LP pool
+          // Add USDC to LP pool (increases liquidity)
           if (toLp > 0) {
             newPool.usdcBalance += toLp;
           }
           
-          // Buyback AF (removes USDC from pool, adds AF)
+          // Buyback AF (removes USDC from pool, removes AF - increases price)
           // Only do buyback if there's meaningful AF in the pool (more than floor value)
           if (toBuyback > 0 && newPool.afPrice > 0 && newPool.afBalance > 1) {
             // Calculate how much AF can actually be bought (limited by pool balance)
@@ -138,8 +128,6 @@ export const useConfigStore = create<ConfigStore>()(
           newPool.afBalance = Math.max(1, newPool.afBalance); // Safety floor of 1 AF
           newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
           newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
-          
-          console.log('New pool after order:', newPool);
           
           return {
             stakingOrders: [
