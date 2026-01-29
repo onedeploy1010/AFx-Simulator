@@ -102,20 +102,22 @@ export const useConfigStore = create<ConfigStore>()(
           // Update AAM pool
           let newPool = { ...state.aamPool };
           
-          // Step 1: Add USDC to LP pool (increases liquidity)
-          if (toLp > 0) {
+          // Step 1: Add liquidity (both USDC and AF in current ratio)
+          // Example: 300 USDC + (300/price) AF to maintain price ratio
+          if (toLp > 0 && newPool.afPrice > 0) {
+            const afToAdd = toLp / newPool.afPrice; // Calculate AF amount to add
             newPool.usdcBalance += toLp;
-            // Recalculate price after adding liquidity (price = usdc/af)
-            newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
+            newPool.afBalance += afToAdd;
+            // Price stays the same after adding liquidity in ratio
+            // newPool.afPrice = newPool.usdcBalance / newPool.afBalance; // Should be same
           }
           
-          // Step 2: Buyback AF using the NEW price after adding liquidity
-          // (removes AF from pool - further increases price)
+          // Step 2: Buyback AF (adds USDC, removes AF - increases price)
           if (toBuyback > 0 && newPool.afPrice > 0 && newPool.afBalance > 1) {
-            // Calculate how much AF can actually be bought at current price
+            // Calculate how much AF can be bought at current price
             const minAfFloor = 1; // Keep at least 1 AF in pool
             const maxAfCanBuy = Math.max(0, newPool.afBalance - minAfFloor);
-            const afWantToBuy = toBuyback / newPool.afPrice; // Use updated price
+            const afWantToBuy = toBuyback / newPool.afPrice;
             const afBought = Math.min(afWantToBuy, maxAfCanBuy);
             
             if (afBought > 0) {
@@ -123,10 +125,12 @@ export const useConfigStore = create<ConfigStore>()(
               newPool.usdcBalance += actualBuybackUsdc; // USDC enters pool
               newPool.afBalance -= afBought; // AF exits pool (bought)
               newPool.totalBuyback += actualBuybackUsdc;
+              // Price increases after buyback (more USDC, less AF)
+              newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
             }
           }
           
-          // Final price recalculation
+          // Final calculations
           newPool.afBalance = Math.max(1, newPool.afBalance); // Safety floor of 1 AF
           newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
           newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
