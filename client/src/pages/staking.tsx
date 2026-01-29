@@ -8,12 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfigStore } from "@/hooks/use-config";
 import { PACKAGE_TIERS } from "@shared/schema";
-import { Plus, Trash2, Coins, TrendingUp, Calculator } from "lucide-react";
+import { Plus, Trash2, Coins, TrendingUp, Calculator, CircleDollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatNumber, formatCurrency } from "@/lib/calculations";
 
 export default function StakingPage() {
-  const { config, stakingOrders, addStakingOrder, removeStakingOrder, clearStakingOrders } = useConfigStore();
+  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders } = useConfigStore();
   const { toast } = useToast();
   
   const [selectedTier, setSelectedTier] = useState<string>("1000");
@@ -85,7 +85,7 @@ export default function StakingPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>总质押金额</CardDescription>
@@ -124,6 +124,21 @@ export default function StakingPage() {
               <Calculator className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
                 {config.afReleaseMode === 'gold_standard' ? '金本位模式' : '币本位模式'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>当前 AF 价格</CardDescription>
+            <CardTitle className="text-3xl">${aamPool.afPrice.toFixed(4)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                LP池: {formatCurrency(aamPool.usdcBalance)}
               </span>
             </div>
           </CardContent>

@@ -75,12 +75,46 @@ export const useConfigStore = create<ConfigStore>()(
       resetConfig: () => set({ config: defaultConfig }),
       
       addStakingOrder: (order) =>
-        set((state) => ({
-          stakingOrders: [
-            ...state.stakingOrders,
-            { ...order, id: crypto.randomUUID() },
-          ],
-        })),
+        set((state) => {
+          const depositAmount = order.amount;
+          const lpRatio = state.config.depositLpRatio / 100;
+          const buybackRatio = state.config.depositBuybackRatio / 100;
+          
+          // Calculate deposit allocation
+          const toLp = depositAmount * lpRatio;
+          const toBuyback = depositAmount * buybackRatio;
+          
+          // Update AAM pool
+          let newPool = { ...state.aamPool };
+          
+          // Add USDC to LP pool
+          if (toLp > 0) {
+            newPool.usdcBalance += toLp;
+          }
+          
+          // Buyback AF (removes USDC from pool, adds AF)
+          if (toBuyback > 0 && newPool.afPrice > 0) {
+            const afBought = toBuyback / newPool.afPrice;
+            newPool.usdcBalance += toBuyback; // USDC enters pool
+            newPool.afBalance -= afBought; // AF exits pool (bought)
+            newPool.afBalance = Math.max(0.01, newPool.afBalance); // Prevent zero/negative
+            newPool.totalBuyback += toBuyback;
+          }
+          
+          // Recalculate price based on AMM formula
+          if (newPool.afBalance > 0.01) {
+            newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
+          }
+          newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
+          
+          return {
+            stakingOrders: [
+              ...state.stakingOrders,
+              { ...order, id: crypto.randomUUID() },
+            ],
+            aamPool: newPool,
+          };
+        }),
       
       removeStakingOrder: (id) =>
         set((state) => ({
