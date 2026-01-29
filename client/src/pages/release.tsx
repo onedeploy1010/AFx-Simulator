@@ -404,7 +404,7 @@ export default function ReleasePage() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t">
                       <div>
                         <p className="text-xs text-muted-foreground">日释放 AF</p>
                         <p className="text-sm font-medium">{formatNumber(progress.dailyAfRelease)} AF</p>
@@ -414,14 +414,61 @@ export default function ReleasePage() {
                         <p className="text-sm font-medium">{formatNumber(progress.totalAfReleased)} AF</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">AF 价值</p>
+                        <p className="text-xs text-muted-foreground">AF 价值 (USDC)</p>
                         <p className="text-sm font-medium">{formatCurrency(progress.totalAfValue)}</p>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">交易本金</p>
-                        <p className="text-sm font-medium">{formatCurrency(progress.tradingCapital)}</p>
-                      </div>
                     </div>
+                    
+                    {(() => {
+                      const pkg = config.packageConfigs.find(p => p.tier === progress.packageTier);
+                      if (!pkg) return null;
+                      const multiplier = pkg.tradingCapitalMultiplier;
+                      const afValueUsdc = progress.totalAfValue;
+                      const convertedTradingCapital = afValueUsdc * multiplier;
+                      const dailyVolume = progress.tradingCapital * (config.dailyTradingVolumePercent / 100);
+                      const dailyProfit = dailyVolume * (pkg.tradingProfitRate / 100);
+                      const dailyFee = dailyProfit * (pkg.tradingFeeRate / 100);
+                      const dailyNetProfit = dailyProfit - dailyFee;
+                      const userDailyProfit = dailyNetProfit * (pkg.profitSharePercent / 100);
+                      const periodProfit = userDailyProfit * progress.currentDay;
+                      
+                      return (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t bg-muted/50 p-3 rounded-md">
+                          <div>
+                            <p className="text-xs text-muted-foreground">交易本金倍数</p>
+                            <p className="text-sm font-medium text-primary">{multiplier}x</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">交易本金</p>
+                            <p className="text-sm font-medium">{formatCurrency(progress.tradingCapital)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">日交易量</p>
+                            <p className="text-sm font-medium">{formatCurrency(dailyVolume)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">日用户收益</p>
+                            <p className="text-sm font-medium text-green-500">{formatCurrency(userDailyProfit)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">利润率</p>
+                            <p className="text-sm font-medium">{pkg.tradingProfitRate}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">手续费率</p>
+                            <p className="text-sm font-medium">{pkg.tradingFeeRate}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">分润比例</p>
+                            <p className="text-sm font-medium">{pkg.profitSharePercent}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">{progress.currentDay}天累计收益</p>
+                            <p className="text-sm font-medium text-green-500">{formatCurrency(periodProfit)}</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
