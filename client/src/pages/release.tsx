@@ -24,8 +24,11 @@ export default function ReleasePage() {
     return {
       totalAfReleased: simulationResults.reduce((sum, r) => sum + r.afReleased, 0),
       totalUserProfit: simulationResults.reduce((sum, r) => sum + r.userProfit, 0),
+      totalPlatformProfit: simulationResults.reduce((sum, r) => sum + r.platformProfit, 0),
+      totalBrokerProfit: simulationResults.reduce((sum, r) => sum + r.brokerProfit, 0),
       totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
       avgPrice: simulationResults.reduce((sum, r) => sum + r.afPrice, 0) / simulationResults.length,
+      initialPrice: aamPool.afPrice,
       finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || 0,
       totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketAf, 0),
       totalToTradingFee: simulationResults.reduce((sum, r) => sum + r.toTradingFeeAf, 0),
@@ -35,15 +38,60 @@ export default function ReleasePage() {
       totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
       totalReserve: simulationResults.reduce((sum, r) => sum + r.reserveAmountUsdc, 0),
     };
-  }, [simulationResults]);
+  }, [simulationResults, aamPool.afPrice]);
 
-  const chartData = simulationResults.map(r => ({
-    day: `Day ${r.day}`,
-    afReleased: parseFloat(r.afReleased.toFixed(2)),
-    afPrice: parseFloat(r.afPrice.toFixed(4)),
-    userProfit: parseFloat(r.userProfit.toFixed(2)),
-    burn: parseFloat(r.burnAmountAf.toFixed(2)),
-  }));
+  // Build chart data with cumulative values and initial price at day 0
+  const chartData = useMemo(() => {
+    if (simulationResults.length === 0) return [];
+    
+    let cumAfReleased = 0;
+    let cumUserProfit = 0;
+    let cumPlatformProfit = 0;
+    let cumBrokerProfit = 0;
+    let cumWithdrawAf = 0;
+    let cumRewardAf = 0;
+    
+    // Start with day 0 (initial state)
+    const data = [{
+      day: 0,
+      dayLabel: 'Day 0',
+      afPrice: aamPool.afPrice,
+      afReleased: 0,
+      userProfit: 0,
+      cumAfReleased: 0,
+      cumUserProfit: 0,
+      cumPlatformProfit: 0,
+      cumBrokerProfit: 0,
+      cumWithdrawAf: 0,
+      cumRewardAf: 0,
+    }];
+    
+    for (const r of simulationResults) {
+      cumAfReleased += r.afReleased;
+      cumUserProfit += r.userProfit;
+      cumPlatformProfit += r.platformProfit;
+      cumBrokerProfit += r.brokerProfit;
+      cumWithdrawAf += r.toSecondaryMarketAf;
+      // Reward AF = total released - burned - kept as fee
+      cumRewardAf += r.afReleased - r.burnAmountAf;
+      
+      data.push({
+        day: r.day,
+        dayLabel: `Day ${r.day}`,
+        afPrice: r.afPrice,
+        afReleased: r.afReleased,
+        userProfit: r.userProfit,
+        cumAfReleased,
+        cumUserProfit,
+        cumPlatformProfit,
+        cumBrokerProfit,
+        cumWithdrawAf,
+        cumRewardAf,
+      });
+    }
+    
+    return data;
+  }, [simulationResults, aamPool.afPrice]);
 
   // Calculate per-order release progress for current simulation day
   const orderProgress = useMemo(() => {
@@ -127,70 +175,150 @@ export default function ReleasePage() {
       ) : (
         <>
           {totals && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-2">
-                    <Coins className="h-4 w-4" />
-                    累计释放 AF
-                  </CardDescription>
-                  <CardTitle className="text-2xl">{formatNumber(totals.totalAfReleased)}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    日均 {formatNumber(totals.totalAfReleased / simulationDays)} AF
-                  </p>
-                </CardContent>
-              </Card>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Coins className="h-4 w-4" />
+                      累计释放 AF
+                    </CardDescription>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalAfReleased)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatNumber(totals.totalAfReleased / simulationDays)} AF
+                    </p>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    累计用户收益
-                  </CardDescription>
-                  <CardTitle className="text-2xl">{formatCurrency(totals.totalUserProfit)}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    日均 {formatCurrency(totals.totalUserProfit / simulationDays)}
-                  </p>
-                </CardContent>
-              </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Coins className="h-4 w-4" />
+                      累计拨出奖励 AF
+                    </CardDescription>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalAfReleased - totals.totalBurn)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      释放 - 销毁
+                    </p>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-2">
-                    <Flame className="h-4 w-4" />
-                    累计销毁
-                  </CardDescription>
-                  <CardTitle className="text-2xl">{formatNumber(totals.totalBurn)} AF</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    销毁率 {totals.totalAfReleased > 0 ? ((totals.totalBurn / totals.totalAfReleased) * 100).toFixed(1) : 0}%
-                  </p>
-                </CardContent>
-              </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      累计客户提取 AF
+                    </CardDescription>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalToSecondaryMarket)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      卖入 LP 池
+                    </p>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    AF 币价变化
-                  </CardDescription>
-                  <CardTitle className="text-2xl">${totals.finalPrice.toFixed(4)}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    初始 ${aamPool.afPrice.toFixed(4)}
-                    <span className={totals.finalPrice >= aamPool.afPrice ? " text-green-500" : " text-red-500"}>
-                      {" "}({((totals.finalPrice / aamPool.afPrice - 1) * 100).toFixed(2)}%)
-                    </span>
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      累计客户利润
+                    </CardDescription>
+                    <CardTitle className="text-xl text-green-500">{formatCurrency(totals.totalUserProfit)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatCurrency(totals.totalUserProfit / simulationDays)}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      累计平台分润
+                    </CardDescription>
+                    <CardTitle className="text-xl">{formatCurrency(totals.totalPlatformProfit)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatCurrency(totals.totalPlatformProfit / simulationDays)}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      累计经纪人分润
+                    </CardDescription>
+                    <CardTitle className="text-xl">{formatCurrency(totals.totalBrokerProfit)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      日均 {formatCurrency(totals.totalBrokerProfit / simulationDays)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-2">
+                      <Flame className="h-4 w-4" />
+                      累计销毁
+                    </CardDescription>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalBurn)} AF</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      销毁率 {totals.totalAfReleased > 0 ? ((totals.totalBurn / totals.totalAfReleased) * 100).toFixed(1) : 0}%
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>初始币价</CardDescription>
+                    <CardTitle className="text-xl">${totals.initialPrice.toFixed(6)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">Day 0</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>最终币价</CardDescription>
+                    <CardTitle className="text-xl">${totals.finalPrice.toFixed(6)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      <span className={totals.finalPrice >= totals.initialPrice ? "text-green-500" : "text-red-500"}>
+                        {totals.finalPrice >= totals.initialPrice ? "+" : ""}{((totals.finalPrice / totals.initialPrice - 1) * 100).toFixed(2)}%
+                      </span>
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>平均币价</CardDescription>
+                    <CardTitle className="text-xl">${totals.avgPrice.toFixed(6)}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">{simulationDays}天均价</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
           )}
 
           {/* Per-Order Release Progress */}
@@ -327,11 +455,51 @@ export default function ReleasePage() {
             </Card>
           )}
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">{simulationDays}天币价走势</CardTitle>
+              <CardDescription>从第0天初始价格开始的币价变化</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                    <YAxis 
+                      tick={{ fontSize: 12 }} 
+                      domain={['auto', 'auto']} 
+                      className="text-muted-foreground"
+                      tickFormatter={(v) => `$${v.toFixed(2)}`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        borderColor: 'hsl(var(--border))',
+                        borderRadius: '6px',
+                      }}
+                      formatter={(value: number) => [`$${value.toFixed(6)}`, 'AF 价格']}
+                      labelFormatter={(label) => `Day ${label}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="afPrice"
+                      name="AF 价格"
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">AF 释放趋势</CardTitle>
-                <CardDescription>每日 AF 释放数量</CardDescription>
+                <CardTitle className="text-lg">累计 AF 释放与拨出</CardTitle>
+                <CardDescription>累计释放 AF 和累计拨出奖励 AF</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -346,13 +514,22 @@ export default function ReleasePage() {
                           borderColor: 'hsl(var(--border))',
                           borderRadius: '6px',
                         }}
+                        labelFormatter={(label) => `Day ${label}`}
+                      />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="cumAfReleased"
+                        name="累计释放 AF"
+                        stroke="hsl(var(--primary))"
+                        fill="hsl(var(--primary) / 0.3)"
                       />
                       <Area
                         type="monotone"
-                        dataKey="afReleased"
-                        name="AF 释放"
-                        stroke="hsl(var(--primary))"
-                        fill="hsl(var(--primary) / 0.2)"
+                        dataKey="cumRewardAf"
+                        name="累计拨出奖励 AF"
+                        stroke="hsl(var(--chart-2))"
+                        fill="hsl(var(--chart-2) / 0.3)"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -362,32 +539,120 @@ export default function ReleasePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">AF 币价变化</CardTitle>
-                <CardDescription>模拟期间币价走势</CardDescription>
+                <CardTitle className="text-lg">累计客户提取 AF</CardTitle>
+                <CardDescription>客户提现后卖入 LP 池的 AF 数量</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
+                    <AreaChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                      <YAxis tick={{ fontSize: 12 }} domain={['auto', 'auto']} className="text-muted-foreground" />
+                      <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'hsl(var(--card))',
                           borderColor: 'hsl(var(--border))',
                           borderRadius: '6px',
                         }}
+                        labelFormatter={(label) => `Day ${label}`}
                       />
-                      <Line
+                      <Area
                         type="monotone"
-                        dataKey="afPrice"
-                        name="AF 价格"
-                        stroke="hsl(var(--chart-2))"
-                        strokeWidth={2}
-                        dot={false}
+                        dataKey="cumWithdrawAf"
+                        name="累计客户提取 AF"
+                        stroke="hsl(var(--chart-4))"
+                        fill="hsl(var(--chart-4) / 0.3)"
                       />
-                    </LineChart>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">累计利润分配</CardTitle>
+                <CardDescription>客户、平台、经纪人累计利润</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                      <YAxis 
+                        tick={{ fontSize: 12 }} 
+                        className="text-muted-foreground"
+                        tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          borderColor: 'hsl(var(--border))',
+                          borderRadius: '6px',
+                        }}
+                        formatter={(value: number) => formatCurrency(value)}
+                        labelFormatter={(label) => `Day ${label}`}
+                      />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="cumUserProfit"
+                        name="累计客户利润"
+                        stroke="hsl(var(--chart-2))"
+                        fill="hsl(var(--chart-2) / 0.3)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="cumPlatformProfit"
+                        name="累计平台分润"
+                        stroke="hsl(var(--chart-1))"
+                        fill="hsl(var(--chart-1) / 0.3)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="cumBrokerProfit"
+                        name="累计经纪人分润"
+                        stroke="hsl(var(--chart-4))"
+                        fill="hsl(var(--chart-4) / 0.3)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">每日 AF 释放</CardTitle>
+                <CardDescription>每日 AF 释放数量</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData.slice(1)}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                      <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          borderColor: 'hsl(var(--border))',
+                          borderRadius: '6px',
+                        }}
+                        labelFormatter={(label) => `Day ${label}`}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="afReleased"
+                        name="每日 AF 释放"
+                        stroke="hsl(var(--primary))"
+                        fill="hsl(var(--primary) / 0.2)"
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
@@ -396,37 +661,34 @@ export default function ReleasePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">收益与销毁对比</CardTitle>
-              <CardDescription>用户收益与 AF 销毁趋势</CardDescription>
+              <CardTitle className="text-lg">每日用户收益</CardTitle>
+              <CardDescription>每日用户收益趋势（从第1天开始）</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
+                  <LineChart data={chartData.slice(1)}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                    <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                    <YAxis 
+                      tick={{ fontSize: 12 }} 
+                      className="text-muted-foreground"
+                      tickFormatter={(v) => `$${v.toFixed(0)}`}
+                    />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
                         borderColor: 'hsl(var(--border))',
                         borderRadius: '6px',
                       }}
+                      formatter={(value: number) => formatCurrency(value)}
+                      labelFormatter={(label) => `Day ${label}`}
                     />
-                    <Legend />
                     <Line
                       type="monotone"
                       dataKey="userProfit"
-                      name="用户收益"
+                      name="每日用户收益"
                       stroke="hsl(var(--chart-2))"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="burn"
-                      name="AF 销毁"
-                      stroke="hsl(var(--chart-5))"
                       strokeWidth={2}
                       dot={false}
                     />
