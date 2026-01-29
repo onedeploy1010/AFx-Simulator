@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
 import { runSimulation, formatNumber, formatCurrency, calculateOrderReleaseProgress } from "@/lib/calculations";
 import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle } from "lucide-react";
@@ -13,11 +14,18 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 export default function ReleasePage() {
   const { config, stakingOrders, aamPool, clearStakingOrders, resetAAMPool } = useConfigStore();
   const [simulationDays, setSimulationDays] = useState(30);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("all");
+
+  // Filter orders based on selection
+  const filteredOrders = useMemo(() => {
+    if (selectedOrderId === "all") return stakingOrders;
+    return stakingOrders.filter(o => o.id === selectedOrderId);
+  }, [stakingOrders, selectedOrderId]);
 
   const simulationResults = useMemo(() => {
-    if (stakingOrders.length === 0) return [];
-    return runSimulation(stakingOrders, config, simulationDays, aamPool);
-  }, [stakingOrders, config, simulationDays, aamPool]);
+    if (filteredOrders.length === 0) return [];
+    return runSimulation(filteredOrders, config, simulationDays, aamPool);
+  }, [filteredOrders, config, simulationDays, aamPool]);
 
   const totals = useMemo(() => {
     if (simulationResults.length === 0) return null;
@@ -93,14 +101,14 @@ export default function ReleasePage() {
     return data;
   }, [simulationResults, aamPool.afPrice]);
 
-  // Calculate per-order release progress for current simulation day
+  // Calculate per-order release progress for current simulation day (filtered by selection)
   const orderProgress = useMemo(() => {
-    if (stakingOrders.length === 0) return [];
+    if (filteredOrders.length === 0) return [];
     const currentAfPrice = simulationResults.length > 0 
       ? simulationResults[simulationResults.length - 1].afPrice 
       : aamPool.afPrice;
-    return calculateOrderReleaseProgress(stakingOrders, config, simulationDays, currentAfPrice);
-  }, [stakingOrders, config, simulationDays, simulationResults, aamPool.afPrice]);
+    return calculateOrderReleaseProgress(filteredOrders, config, simulationDays, currentAfPrice);
+  }, [filteredOrders, config, simulationDays, simulationResults, aamPool.afPrice]);
 
   return (
     <div className="p-6 space-y-6">
@@ -131,10 +139,26 @@ export default function ReleasePage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">模拟设置</CardTitle>
-          <CardDescription>设置模拟周期</CardDescription>
+          <CardDescription>选择订单和模拟周期</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-6">
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-6 flex-wrap">
+            <div className="space-y-2 min-w-[200px]">
+              <Label>选择订单</Label>
+              <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+                <SelectTrigger data-testid="select-order-filter">
+                  <SelectValue placeholder="选择订单" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部订单 ({stakingOrders.length}笔)</SelectItem>
+                  {stakingOrders.map((order) => (
+                    <SelectItem key={order.id} value={order.id}>
+                      {order.packageTier} USDC - #{order.id.slice(-6)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex-1 space-y-2">
               <Label>模拟天数: {simulationDays} 天</Label>
               <Slider
@@ -146,7 +170,7 @@ export default function ReleasePage() {
                 data-testid="slider-sim-days"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {[30, 60, 90, 180, 365].map(days => (
                 <Button
                   key={days}
@@ -159,6 +183,16 @@ export default function ReleasePage() {
               ))}
             </div>
           </div>
+          {selectedOrderId !== "all" && (
+            <div className="p-3 rounded-md bg-muted">
+              <p className="text-sm">
+                当前查看: <Badge variant="default">{filteredOrders[0]?.packageTier} USDC</Badge>
+                <span className="text-muted-foreground ml-2">
+                  订单 #{selectedOrderId.slice(-6)} | 质押 {filteredOrders[0]?.daysStaked} 天
+                </span>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
