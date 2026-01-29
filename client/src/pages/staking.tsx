@@ -13,7 +13,12 @@ import { useToast } from "@/hooks/use-toast";
 import { formatNumber, formatCurrency } from "@/lib/calculations";
 
 export default function StakingPage() {
-  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders } = useConfigStore();
+  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders, resetAAMPool } = useConfigStore();
+  
+  // Calculate initial price for comparison
+  const initialPrice = config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : 0.1;
+  const priceChange = aamPool.afPrice - initialPrice;
+  const priceChangePercent = initialPrice > 0 ? ((aamPool.afPrice / initialPrice) - 1) * 100 : 0;
   const { toast } = useToast();
   
   const [selectedTier, setSelectedTier] = useState<string>("1000");
@@ -79,10 +84,22 @@ export default function StakingPage() {
           <h1 className="text-2xl font-bold">质押模拟</h1>
           <p className="text-muted-foreground">支持用户叠加多笔质押订单</p>
         </div>
-        <Button variant="destructive" onClick={clearStakingOrders} disabled={stakingOrders.length === 0} data-testid="button-clear-orders">
-          <Trash2 className="h-4 w-4 mr-2" />
-          清空所有
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              resetAAMPool();
+              toast({ title: "AAM池已重置", description: "价格已恢复到初始状态" });
+            }}
+            data-testid="button-reset-aam"
+          >
+            重置价格
+          </Button>
+          <Button variant="destructive" onClick={() => { clearStakingOrders(); resetAAMPool(); }} disabled={stakingOrders.length === 0} data-testid="button-clear-orders">
+            <Trash2 className="h-4 w-4 mr-2" />
+            清空所有
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -132,14 +149,19 @@ export default function StakingPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>当前 AF 价格</CardDescription>
-            <CardTitle className="text-3xl">${aamPool.afPrice.toFixed(4)}</CardTitle>
+            <CardTitle className="text-3xl">${aamPool.afPrice.toFixed(6)}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                LP池: {formatCurrency(aamPool.usdcBalance)}
-              </span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+                <span className={`text-sm font-medium ${priceChangePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(4)}%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                初始: ${initialPrice.toFixed(6)} | 累计回购: {formatCurrency(aamPool.totalBuyback)}
+              </p>
             </div>
           </CardContent>
         </Card>
