@@ -58,9 +58,24 @@ export const useConfigStore = create<ConfigStore>()(
       aamPool: initialAAMPool,
       
       setConfig: (newConfig) =>
-        set((state) => ({
-          config: { ...state.config, ...newConfig },
-        })),
+        set((state) => {
+          const updatedConfig = { ...state.config, ...newConfig };
+          
+          // If initial LP settings changed, update AAM pool to match
+          const lpConfigChanged = 
+            (newConfig.initialLpUsdc !== undefined && newConfig.initialLpUsdc !== state.config.initialLpUsdc) ||
+            (newConfig.initialLpAf !== undefined && newConfig.initialLpAf !== state.config.initialLpAf);
+          
+          if (lpConfigChanged) {
+            return {
+              config: updatedConfig,
+              aamPool: getInitialAAMPool(updatedConfig),
+              stakingOrders: [], // Clear orders when LP config changes
+            };
+          }
+          
+          return { config: updatedConfig };
+        }),
       
       updatePackageConfig: (tier, updates) =>
         set((state) => ({
