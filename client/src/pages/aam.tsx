@@ -1,57 +1,53 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/hooks/use-config";
-import { simulateAAMPool, formatNumber, formatCurrency } from "@/lib/calculations";
-import { Droplets, TrendingUp, Flame, RefreshCw, DollarSign, Coins } from "lucide-react";
+import { runSimulation, formatNumber, formatCurrency } from "@/lib/calculations";
+import { Droplets, TrendingUp, Flame, RefreshCw, DollarSign, Coins, Activity } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function AAMPage() {
-  const { aamPool, updateAAMPool, resetAAMPool } = useConfigStore();
-  const [usdcToAdd, setUsdcToAdd] = useState(10000);
-  const [afToAdd, setAfToAdd] = useState(100000);
-  const [buybackAmount, setBuybackAmount] = useState(5000);
-  const [burnAmount, setBurnAmount] = useState(2000);
+  const { config, stakingOrders, aamPool, resetAAMPool } = useConfigStore();
 
-  const simulatedPool = useMemo(() => {
-    return simulateAAMPool(aamPool, usdcToAdd, afToAdd, buybackAmount, burnAmount);
-  }, [aamPool, usdcToAdd, afToAdd, buybackAmount, burnAmount]);
+  const simulationResults = useMemo(() => {
+    if (stakingOrders.length === 0) return [];
+    return runSimulation(stakingOrders, config, 30, aamPool);
+  }, [stakingOrders, config, aamPool]);
 
-  const priceChange = ((simulatedPool.afPrice / aamPool.afPrice) - 1) * 100;
-
-  const priceSimulation = useMemo(() => {
-    const data = [];
-    let currentPool = { ...aamPool };
-    
-    for (let i = 0; i <= 30; i++) {
-      data.push({
+  const poolHistory = useMemo(() => {
+    if (simulationResults.length === 0) {
+      return Array.from({ length: 31 }, (_, i) => ({
         day: i,
-        price: currentPool.afPrice,
-        usdc: currentPool.usdcBalance,
-        af: currentPool.afBalance,
-      });
-      
-      if (i < 30) {
-        currentPool = simulateAAMPool(
-          currentPool,
-          usdcToAdd / 30,
-          afToAdd / 30,
-          buybackAmount / 30,
-          burnAmount / 30
-        );
-      }
+        price: aamPool.afPrice,
+        usdc: aamPool.usdcBalance,
+        af: aamPool.afBalance,
+      }));
     }
-    
-    return data;
-  }, [aamPool, usdcToAdd, afToAdd, buybackAmount, burnAmount]);
 
-  const handleApplySimulation = () => {
-    updateAAMPool(simulatedPool);
-  };
+    return [
+      { day: 0, price: aamPool.afPrice, usdc: aamPool.usdcBalance, af: aamPool.afBalance },
+      ...simulationResults.map(r => ({
+        day: r.day,
+        price: r.afPrice,
+        usdc: aamPool.usdcBalance + r.lpContributionUsdc,
+        af: aamPool.afBalance - r.burnAmountAf,
+      }))
+    ];
+  }, [simulationResults, aamPool]);
+
+  const totals = useMemo(() => {
+    if (simulationResults.length === 0) return null;
+    return {
+      totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
+      totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
+      totalLpUsdc: simulationResults.reduce((sum, r) => sum + r.lpContributionUsdc, 0),
+      totalLpAf: simulationResults.reduce((sum, r) => sum + r.lpContributionAfValue, 0),
+      finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || aamPool.afPrice,
+    };
+  }, [simulationResults, aamPool]);
+
+  const priceChange = totals ? ((totals.finalPrice / aamPool.afPrice) - 1) * 100 : 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -60,10 +56,15 @@ export default function AAMPage() {
           <h1 className="text-2xl font-bold">AAM 池监控</h1>
           <p className="text-muted-foreground">LP 池规模、AF 币价变化与回购销毁</p>
         </div>
-        <Button variant="outline" onClick={resetAAMPool} data-testid="button-reset-pool">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          重置池状态
-        </Button>
+        <div className="flex items-center gap-2">
+          <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
+            {stakingOrders.length} 笔订单
+          </Badge>
+          <Button variant="outline" onClick={resetAAMPool} data-testid="button-reset-pool">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            重置池状态
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -130,127 +131,63 @@ export default function AAMPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {totals && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">模拟操作</CardTitle>
-            <CardDescription>模拟添加流动性、回购和销毁</CardDescription>
+            <CardTitle className="text-lg">30天模拟预测</CardTitle>
+            <CardDescription>基于当前质押订单的模拟结果</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>添加 USDC: {formatCurrency(usdcToAdd)}</Label>
-              <Slider
-                value={[usdcToAdd]}
-                onValueChange={([v]) => setUsdcToAdd(v)}
-                min={0}
-                max={100000}
-                step={1000}
-                data-testid="slider-usdc"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>添加 AF: {formatNumber(afToAdd)}</Label>
-              <Slider
-                value={[afToAdd]}
-                onValueChange={([v]) => setAfToAdd(v)}
-                min={0}
-                max={1000000}
-                step={10000}
-                data-testid="slider-af"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>回购 AF: {formatNumber(buybackAmount)}</Label>
-              <Slider
-                value={[buybackAmount]}
-                onValueChange={([v]) => setBuybackAmount(v)}
-                min={0}
-                max={50000}
-                step={1000}
-                data-testid="slider-buyback"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>销毁 AF: {formatNumber(burnAmount)}</Label>
-              <Slider
-                value={[burnAmount]}
-                onValueChange={([v]) => setBurnAmount(v)}
-                min={0}
-                max={50000}
-                step={1000}
-                data-testid="slider-burn"
-              />
-            </div>
-
-            <Button className="w-full" onClick={handleApplySimulation} data-testid="button-apply">
-              应用模拟结果
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">模拟结果预览</CardTitle>
-            <CardDescription>操作后的池状态</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="p-3 rounded-md border">
-                <p className="text-sm text-muted-foreground">新 USDC 余额</p>
-                <p className="text-lg font-semibold">{formatCurrency(simulatedPool.usdcBalance)}</p>
-                <p className="text-xs text-green-500">+{formatCurrency(usdcToAdd)}</p>
+                <p className="text-sm text-muted-foreground">预计回购</p>
+                <p className="text-lg font-semibold">{formatCurrency(totals.totalBuyback)}</p>
               </div>
               <div className="p-3 rounded-md border">
-                <p className="text-sm text-muted-foreground">新 AF 余额</p>
-                <p className="text-lg font-semibold">{formatNumber(simulatedPool.afBalance)}</p>
-                <p className={`text-xs ${afToAdd - buybackAmount - burnAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {afToAdd - buybackAmount - burnAmount >= 0 ? '+' : ''}{formatNumber(afToAdd - buybackAmount - burnAmount)}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-md bg-muted">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm">新 AF 价格</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold">${simulatedPool.afPrice.toFixed(4)}</span>
-                  <Badge variant={priceChange >= 0 ? "default" : "destructive"}>
-                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                  </Badge>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">新 LP 代币</span>
-                <span className="font-medium">{formatNumber(simulatedPool.lpTokens)}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md border">
-                <p className="text-sm text-muted-foreground">累计回购</p>
-                <p className="text-lg font-semibold">{formatNumber(simulatedPool.totalBuyback)} AF</p>
+                <p className="text-sm text-muted-foreground">预计销毁</p>
+                <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} AF</p>
               </div>
               <div className="p-3 rounded-md border">
-                <p className="text-sm text-muted-foreground">累计销毁</p>
-                <p className="text-lg font-semibold">{formatNumber(simulatedPool.totalBurn)} AF</p>
+                <p className="text-sm text-muted-foreground">LP 注入 USDC</p>
+                <p className="text-lg font-semibold">{formatCurrency(totals.totalLpUsdc)}</p>
+              </div>
+              <div className="p-3 rounded-md border">
+                <p className="text-sm text-muted-foreground">LP 注入 AF 价值</p>
+                <p className="text-lg font-semibold">{formatCurrency(totals.totalLpAf)}</p>
+              </div>
+              <div className="p-3 rounded-md border">
+                <p className="text-sm text-muted-foreground">预计币价</p>
+                <p className="text-lg font-semibold">${totals.finalPrice.toFixed(4)}</p>
+                <Badge variant={priceChange >= 0 ? "default" : "destructive"} className="mt-1">
+                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+                </Badge>
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
+
+      {stakingOrders.length === 0 && (
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center text-muted-foreground">
+              <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>暂无质押订单</p>
+              <p className="text-sm">添加质押订单后，这里将显示模拟预测</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">30天币价走势模拟</CardTitle>
-          <CardDescription>按当前参数模拟 30 天的币价变化</CardDescription>
+          <CardTitle className="text-lg">30天币价走势</CardTitle>
+          <CardDescription>基于当前配置的币价变化趋势</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={priceSimulation}>
+              <AreaChart data={poolHistory}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="day"
@@ -294,7 +231,7 @@ export default function AAMPage() {
           <CardContent>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={priceSimulation}>
+                <LineChart data={poolHistory}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
                   <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
@@ -326,7 +263,7 @@ export default function AAMPage() {
           <CardContent>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={priceSimulation}>
+                <LineChart data={poolHistory}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
                   <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
