@@ -99,6 +99,16 @@ export const useConfigStore = create<ConfigStore>()(
           const toLp = depositAmount * lpRatio;
           const toBuyback = depositAmount * buybackRatio;
           
+          // Debug logging
+          console.log('Adding order:', {
+            depositAmount,
+            lpRatio: state.config.depositLpRatio,
+            buybackRatio: state.config.depositBuybackRatio,
+            toLp,
+            toBuyback,
+            currentPool: state.aamPool,
+          });
+          
           // Update AAM pool
           let newPool = { ...state.aamPool };
           
@@ -108,19 +118,28 @@ export const useConfigStore = create<ConfigStore>()(
           }
           
           // Buyback AF (removes USDC from pool, adds AF)
-          if (toBuyback > 0 && newPool.afPrice > 0) {
-            const afBought = toBuyback / newPool.afPrice;
-            newPool.usdcBalance += toBuyback; // USDC enters pool
-            newPool.afBalance -= afBought; // AF exits pool (bought)
-            newPool.afBalance = Math.max(0.01, newPool.afBalance); // Prevent zero/negative
-            newPool.totalBuyback += toBuyback;
+          // Only do buyback if there's meaningful AF in the pool (more than floor value)
+          if (toBuyback > 0 && newPool.afPrice > 0 && newPool.afBalance > 1) {
+            // Calculate how much AF can actually be bought (limited by pool balance)
+            const minAfFloor = 1; // Keep at least 1 AF in pool
+            const maxAfCanBuy = Math.max(0, newPool.afBalance - minAfFloor);
+            const afWantToBuy = toBuyback / newPool.afPrice;
+            const afBought = Math.min(afWantToBuy, maxAfCanBuy);
+            
+            if (afBought > 0) {
+              const actualBuybackUsdc = afBought * newPool.afPrice;
+              newPool.usdcBalance += actualBuybackUsdc; // USDC enters pool
+              newPool.afBalance -= afBought; // AF exits pool (bought)
+              newPool.totalBuyback += actualBuybackUsdc;
+            }
           }
           
-          // Recalculate price based on AMM formula
-          if (newPool.afBalance > 0.01) {
-            newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
-          }
+          // Always recalculate price based on AMM formula (x*y=k model: price = usdc/af)
+          newPool.afBalance = Math.max(1, newPool.afBalance); // Safety floor of 1 AF
+          newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
           newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
+          
+          console.log('New pool after order:', newPool);
           
           return {
             stakingOrders: [
@@ -154,11 +173,30 @@ export const useConfigStore = create<ConfigStore>()(
         const persisted = persistedState as Partial<ConfigStore> | undefined;
         if (!persisted) return currentState;
         
+        const mergedConfig = mergeWithDefaults(persisted.config || {});
+        
+        // Auto-sync AAM pool with config's initial values if they don't match
+        let aamPool = persisted.aamPool || currentState.aamPool;
+        const expectedInitialPrice = mergedConfig.initialLpAf > 0 
+          ? mergedConfig.initialLpUsdc / mergedConfig.initialLpAf 
+          : 0.1;
+        
+        // If the initial LP values changed or pool seems stale, reset it
+        const configInitialUsdc = mergedConfig.initialLpUsdc;
+        const configInitialAf = mergedConfig.initialLpAf;
+        const poolNeedsReset = !persisted.aamPool || 
+          (persisted.stakingOrders?.length === 0 && 
+           Math.abs(aamPool.afPrice - expectedInitialPrice) > 0.0001);
+        
+        if (poolNeedsReset) {
+          aamPool = getInitialAAMPool(mergedConfig);
+        }
+        
         return {
           ...currentState,
           ...persisted,
-          config: mergeWithDefaults(persisted.config || {}),
-          aamPool: persisted.aamPool || currentState.aamPool,
+          config: mergedConfig,
+          aamPool,
           stakingOrders: persisted.stakingOrders || [],
         };
       },
