@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/hooks/use-config";
 import { runSimulation, formatNumber, formatCurrency } from "@/lib/calculations";
-import { TrendingUp, Coins, Flame, DollarSign } from "lucide-react";
+import { TrendingUp, Coins, Flame, DollarSign, RefreshCw } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function ReleasePage() {
-  const { config, stakingOrders, aamPool } = useConfigStore();
+  const { config, stakingOrders, aamPool, clearStakingOrders, resetAAMPool } = useConfigStore();
   const [simulationDays, setSimulationDays] = useState(30);
 
   const simulationResults = useMemo(() => {
@@ -51,9 +51,23 @@ export default function ReleasePage() {
           <h1 className="text-2xl font-bold">释放进度</h1>
           <p className="text-muted-foreground">查看第 N 天 AF 释放情况</p>
         </div>
-        <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
-          {stakingOrders.length} 笔质押订单
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
+            {stakingOrders.length} 笔质押订单
+          </Badge>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              clearStakingOrders();
+              resetAAMPool();
+            }}
+            disabled={stakingOrders.length === 0}
+            data-testid="button-reset-simulation"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            重置模拟
+          </Button>
+        </div>
       </div>
 
       <Card>
