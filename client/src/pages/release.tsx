@@ -273,11 +273,11 @@ export default function ReleasePage() {
                 <CardDescription>用户选择提现/保留/转换后的 AF 流向 (各配套独立设置)</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">二级市场</p>
+                    <p className="text-sm text-muted-foreground">卖入 LP 池</p>
                     <p className="text-lg font-semibold">{formatNumber(totals.totalToSecondaryMarket)} AF</p>
-                    <p className="text-xs text-muted-foreground">提现后进入市场</p>
+                    <p className="text-xs text-muted-foreground">提现后卖入池子（价格下降）</p>
                   </div>
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">销毁 AF</p>
@@ -294,11 +294,6 @@ export default function ReleasePage() {
                     <p className="text-lg font-semibold">{formatCurrency(totals.totalToTradingCapital)}</p>
                     <p className="text-xs text-muted-foreground">{config.afToTradingCapitalRate}x 倍率</p>
                   </div>
-                  <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">累计回购</p>
-                    <p className="text-lg font-semibold">{formatCurrency(totals.totalBuyback)}</p>
-                    <p className="text-xs text-muted-foreground">{config.buybackRatio}% 交易金</p>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -308,10 +303,10 @@ export default function ReleasePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">交易资金流向汇总</CardTitle>
-                <CardDescription>基于交易本金的资金拆分</CardDescription>
+                <CardDescription>基于交易本金的资金拆分（交易不触发回购）</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">LP 池 (USDC)</p>
                     <p className="text-lg font-semibold">{formatCurrency(totals.totalLpUsdc)}</p>
@@ -321,11 +316,6 @@ export default function ReleasePage() {
                     <p className="text-sm text-muted-foreground">LP 池 (AF价值)</p>
                     <p className="text-lg font-semibold">{formatCurrency(totals.totalLpAfValue)}</p>
                     <p className="text-xs text-muted-foreground">{config.lpPoolAfRatio}% 交易金</p>
-                  </div>
-                  <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">回购 AF</p>
-                    <p className="text-lg font-semibold">{formatCurrency(totals.totalBuyback)}</p>
-                    <p className="text-xs text-muted-foreground">{config.buybackRatio}% 交易金</p>
                   </div>
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">外汇储备金</p>

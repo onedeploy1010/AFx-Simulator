@@ -182,34 +182,47 @@ export function calculateTotalBrokerLayerEarnings(
 }
 
 // Simulate AAM pool state after operations
-// All monetary inputs are in USDC, internally converted to AF using current pool price
+// Handles: LP addition, AF sell to pool (secondary market), burn
 export function simulateAAMPool(
   currentPool: AAMPool,
   usdcAddedToLp: number, // USDC added to LP pool
-  usdcValueForAfLp: number, // USDC value used to buy AF for LP
-  buybackUsdc: number, // USDC spent on buyback (removes AF from pool)
+  afAddedToLp: number, // AF added to LP pool (for LP ratio)
+  afSoldToPool: number, // AF sold to pool (secondary market exit, increases AF, decreases USDC)
   burnAf: number // AF burned (direct AF units)
 ): AAMPool {
-  // Convert USDC values to AF units using current price
-  const afPrice = currentPool.afPrice > 0 ? currentPool.afPrice : 1;
-  const afAddedFromPurchase = usdcValueForAfLp / afPrice;
-  const afBuybackAmount = buybackUsdc / afPrice;
+  let newPool = { ...currentPool };
+  const afPrice = newPool.afPrice > 0 ? newPool.afPrice : 1;
   
-  const newUsdcBalance = currentPool.usdcBalance + usdcAddedToLp;
-  const newAfBalance = currentPool.afBalance + afAddedFromPurchase - afBuybackAmount - burnAf;
+  // Step 1: Add liquidity (both USDC and AF in ratio) - price stays same
+  if (usdcAddedToLp > 0 || afAddedToLp > 0) {
+    newPool.usdcBalance += usdcAddedToLp;
+    newPool.afBalance += afAddedToLp;
+    // Price should stay the same if adding in ratio
+  }
   
-  // Simple AMM price calculation (x * y = k)
-  const k = newUsdcBalance * Math.max(0.01, newAfBalance);
-  const newAfPrice = newAfBalance > 0.01 ? newUsdcBalance / newAfBalance : afPrice;
+  // Step 2: AF sold to pool (secondary market exit)
+  // AF enters pool, USDC exits -> price DECREASES
+  if (afSoldToPool > 0) {
+    const usdcReceived = afSoldToPool * newPool.afPrice;
+    // Limit USDC withdrawal to available balance (keep minimum)
+    const maxUsdcWithdraw = Math.max(0, newPool.usdcBalance - 1);
+    const actualUsdcOut = Math.min(usdcReceived, maxUsdcWithdraw);
+    const actualAfIn = actualUsdcOut / newPool.afPrice;
+    
+    newPool.afBalance += actualAfIn;
+    newPool.usdcBalance -= actualUsdcOut;
+  }
   
-  return {
-    usdcBalance: newUsdcBalance,
-    afBalance: Math.max(0, newAfBalance),
-    lpTokens: Math.sqrt(k),
-    afPrice: newAfPrice,
-    totalBuyback: currentPool.totalBuyback + afBuybackAmount,
-    totalBurn: currentPool.totalBurn + burnAf,
-  };
+  // Step 3: Burn AF
+  // AF removed from supply (not from pool, just tracked)
+  newPool.totalBurn += burnAf;
+  
+  // Recalculate price
+  newPool.afBalance = Math.max(1, newPool.afBalance);
+  newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
+  newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
+  
+  return newPool;
 }
 
 // Run full simulation for N days
@@ -228,7 +241,6 @@ export function runSimulation(
     let totalPlatformProfit = 0;
     let totalBrokerProfit = 0;
     let totalTradingFee = 0;
-    let totalBuyback = 0;
     let totalBurn = 0;
     let totalToTradingCapital = 0;
     let totalToSecondaryMarket = 0;
@@ -285,20 +297,24 @@ export function runSimulation(
         totalPlatformProfit += tradingSim.platformProfit;
         totalBrokerProfit += tradingSim.brokerProfit;
         totalTradingFee += tradingSim.tradingFee;
-        // Fund flow split from trading capital (not fees)
-        totalBuyback += tradingSim.buybackAmount;
+        // Note: Trading does NOT trigger buyback - only LP contributions
         totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
         totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
       }
     }
     
-    // Update pool - LP contributions now based on trading capital, not fees
-    // All values passed in their natural units (USDC or AF), pool handles conversion
+    // Convert LP contribution AF from USDC value to AF units
+    const lpAfUnits = totalLpContributionAf / currentPool.afPrice;
+    
+    // Update pool:
+    // - Add LP (USDC + AF in ratio)
+    // - Secondary market AF sold to pool (price decreases)
+    // - Burn AF (tracked, not from pool)
     currentPool = simulateAAMPool(
       currentPool,
       totalLpContributionUsdc, // USDC added to LP pool
-      totalLpContributionAf, // USDC value used to buy AF for LP
-      totalBuyback, // USDC spent on buyback
+      lpAfUnits, // AF added to LP pool (converted from USDC value)
+      totalToSecondaryMarket, // AF sold to pool (secondary market exit)
       totalBurn // AF burned (direct units)
     );
     
@@ -314,15 +330,15 @@ export function runSimulation(
       brokerProfit: totalBrokerProfit,
       tradingFeeConsumed: totalTradingFee,
       lpPoolSize: currentPool.lpTokens,
-      buybackAmountUsdc: totalBuyback, // Buyback in USDC
+      buybackAmountUsdc: 0, // No buyback from trading
       burnAmountAf: totalBurn, // Burn in AF
       // Exit distribution outputs
-      toSecondaryMarketAf: totalToSecondaryMarket, // AF sold to secondary market
+      toSecondaryMarketAf: totalToSecondaryMarket, // AF sold to pool
       toTradingFeeAf: totalToTradingFeeFromExit, // AF kept as trading fee
       toTradingCapitalUsdc: totalToTradingCapital, // Already in USDC from calculation
       // Fund flow outputs (all in USDC)
       lpContributionUsdc: totalLpContributionUsdc,
-      lpContributionAfValue: totalLpContributionAf, // USDC value used to buy AF for LP
+      lpContributionAfValue: totalLpContributionAf, // USDC value of AF added to LP
       reserveAmountUsdc: totalReserve,
     });
   }
