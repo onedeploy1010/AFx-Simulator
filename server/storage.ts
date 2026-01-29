@@ -1,20 +1,21 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type User, type InsertUser, type AFxConfig, defaultConfig } from "@shared/schema";
 import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getConfig(): Promise<AFxConfig>;
+  saveConfig(config: AFxConfig): Promise<AFxConfig>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
+  private config: AFxConfig;
 
   constructor() {
     this.users = new Map();
+    this.config = defaultConfig;
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -32,6 +33,15 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     return user;
+  }
+
+  async getConfig(): Promise<AFxConfig> {
+    return this.config;
+  }
+
+  async saveConfig(config: AFxConfig): Promise<AFxConfig> {
+    this.config = config;
+    return this.config;
   }
 }
 
