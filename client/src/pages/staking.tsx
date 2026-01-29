@@ -65,7 +65,11 @@ export default function StakingPage() {
   };
 
   const totalStaked = stakingOrders.reduce((sum, order) => sum + order.amount, 0);
-  const totalTradingCapital = stakingOrders.reduce((sum, order) => sum + order.tradingCapital, 0);
+  // Calculate trading capital dynamically based on current config
+  const totalTradingCapital = stakingOrders.reduce((sum, order) => {
+    const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
+    return sum + (order.amount * (pkg?.tradingCapitalMultiplier || 1));
+  }, 0);
   const avgDailyRelease = stakingOrders.reduce((sum, order) => {
     const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
     return sum + (order.amount * (pkg?.afReleaseRate || 0) / 100);
@@ -272,13 +276,18 @@ export default function StakingPage() {
                 <TableBody>
                   {stakingOrders.slice(0, 20).map((order) => {
                     const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
+                    // Calculate trading capital dynamically based on current config
+                    const dynamicTradingCapital = order.amount * (pkg?.tradingCapitalMultiplier || 1);
                     return (
                       <TableRow key={order.id}>
                         <TableCell>
                           <Badge variant="outline">{order.packageTier} USDC</Badge>
                         </TableCell>
                         <TableCell>{formatCurrency(order.amount)}</TableCell>
-                        <TableCell>{formatCurrency(order.tradingCapital)}</TableCell>
+                        <TableCell>
+                          {formatCurrency(dynamicTradingCapital)}
+                          <span className="text-xs text-muted-foreground ml-1">({pkg?.tradingCapitalMultiplier}x)</span>
+                        </TableCell>
                         <TableCell>{pkg?.afReleaseRate}%</TableCell>
                         {config.stakingEnabled && <TableCell>{order.daysStaked} 天</TableCell>}
                         <TableCell>

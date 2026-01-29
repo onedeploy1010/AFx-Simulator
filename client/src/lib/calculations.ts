@@ -261,8 +261,10 @@ export function runSimulation(
       
       // Only simulate trading if trading period has started
       if (canTrade) {
+        // Calculate trading capital dynamically based on current config
+        const dynamicTradingCapital = order.amount * packageConfig.tradingCapitalMultiplier;
         // Simulate trading with trading capital (configurable daily volume %)
-        const dailyTradingVolume = order.tradingCapital * (config.dailyTradingVolumePercent / 100);
+        const dailyTradingVolume = dynamicTradingCapital * (config.dailyTradingVolumePercent / 100);
         totalTradingVolume += dailyTradingVolume;
         
         // Use per-package fee rate and profit rate
@@ -393,6 +395,9 @@ export function calculateOrderReleaseProgress(
     const totalAfReleased = dailyAfRelease * effectiveDay;
     const totalAfValue = totalAfReleased * afPrice;
 
+    // Calculate trading capital dynamically based on current config
+    const dynamicTradingCapital = order.amount * packageConfig.tradingCapitalMultiplier;
+
     return {
       orderId: order.id,
       packageTier: order.packageTier,
@@ -404,7 +409,7 @@ export function calculateOrderReleaseProgress(
       totalAfReleased,
       dailyAfRelease,
       totalAfValue,
-      tradingCapital: order.tradingCapital,
+      tradingCapital: dynamicTradingCapital,
       isComplete,
     };
   });
