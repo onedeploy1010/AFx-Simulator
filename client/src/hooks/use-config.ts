@@ -102,18 +102,20 @@ export const useConfigStore = create<ConfigStore>()(
           // Update AAM pool
           let newPool = { ...state.aamPool };
           
-          // Add USDC to LP pool (increases liquidity)
+          // Step 1: Add USDC to LP pool (increases liquidity)
           if (toLp > 0) {
             newPool.usdcBalance += toLp;
+            // Recalculate price after adding liquidity (price = usdc/af)
+            newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
           }
           
-          // Buyback AF (removes USDC from pool, removes AF - increases price)
-          // Only do buyback if there's meaningful AF in the pool (more than floor value)
+          // Step 2: Buyback AF using the NEW price after adding liquidity
+          // (removes AF from pool - further increases price)
           if (toBuyback > 0 && newPool.afPrice > 0 && newPool.afBalance > 1) {
-            // Calculate how much AF can actually be bought (limited by pool balance)
+            // Calculate how much AF can actually be bought at current price
             const minAfFloor = 1; // Keep at least 1 AF in pool
             const maxAfCanBuy = Math.max(0, newPool.afBalance - minAfFloor);
-            const afWantToBuy = toBuyback / newPool.afPrice;
+            const afWantToBuy = toBuyback / newPool.afPrice; // Use updated price
             const afBought = Math.min(afWantToBuy, maxAfCanBuy);
             
             if (afBought > 0) {
@@ -124,7 +126,7 @@ export const useConfigStore = create<ConfigStore>()(
             }
           }
           
-          // Always recalculate price based on AMM formula (x*y=k model: price = usdc/af)
+          // Final price recalculation
           newPool.afBalance = Math.max(1, newPool.afBalance); // Safety floor of 1 AF
           newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
           newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
