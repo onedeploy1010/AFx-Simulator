@@ -116,6 +116,24 @@ export const dailySimulationSchema = z.object({
 
 export type DailySimulation = z.infer<typeof dailySimulationSchema>;
 
+// Per-order release progress
+export const orderReleaseProgressSchema = z.object({
+  orderId: z.string(),
+  packageTier: z.number(),
+  amount: z.number(), // Original staking amount
+  totalDays: z.number(), // Total staking period
+  currentDay: z.number(), // Current day in simulation
+  daysRemaining: z.number(), // Days remaining
+  progressPercent: z.number(), // Progress percentage
+  totalAfReleased: z.number(), // Total AF released so far
+  dailyAfRelease: z.number(), // Daily AF release amount
+  totalAfValue: z.number(), // Total value of released AF (in USDC)
+  tradingCapital: z.number(), // Trading capital allocated
+  isComplete: z.boolean(), // Whether release is complete
+});
+
+export type OrderReleaseProgress = z.infer<typeof orderReleaseProgressSchema>;
+
 // AAM Pool state
 export const aamPoolSchema = z.object({
   usdcBalance: z.number(),

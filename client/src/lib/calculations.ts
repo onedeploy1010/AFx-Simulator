@@ -1,4 +1,4 @@
-import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation } from "@shared/schema";
+import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress } from "@shared/schema";
 
 // Calculate trading fee rate based on staking amount
 export function calculateTradingFeeRate(
@@ -344,4 +344,68 @@ export function formatCurrency(num: number): string {
 // Format percentage
 export function formatPercent(num: number): string {
   return `${formatNumber(num, 1)}%`;
+}
+
+// Calculate per-order release progress for a given simulation day
+export function calculateOrderReleaseProgress(
+  orders: StakingOrder[],
+  config: AFxConfig,
+  currentDay: number,
+  afPrice: number
+): OrderReleaseProgress[] {
+  return orders.map(order => {
+    const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
+    if (!packageConfig) {
+      return {
+        orderId: order.id,
+        packageTier: order.packageTier,
+        amount: order.amount,
+        totalDays: order.daysStaked,
+        currentDay,
+        daysRemaining: 0,
+        progressPercent: 100,
+        totalAfReleased: 0,
+        dailyAfRelease: 0,
+        totalAfValue: 0,
+        tradingCapital: order.tradingCapital,
+        isComplete: true,
+      };
+    }
+
+    const totalDays = order.daysStaked;
+    const effectiveDay = Math.min(currentDay, totalDays);
+    const daysRemaining = Math.max(0, totalDays - currentDay);
+    const progressPercent = totalDays > 0 ? (effectiveDay / totalDays) * 100 : 100;
+    const isComplete = currentDay >= totalDays;
+
+    // Calculate daily AF release
+    let dailyAfRelease = 0;
+    if (config.stakingEnabled) {
+      if (config.afReleaseMode === 'gold_standard') {
+        const dailyUsdcValue = order.amount * (packageConfig.afReleaseRate / 100);
+        dailyAfRelease = dailyUsdcValue / afPrice;
+      } else {
+        dailyAfRelease = order.amount * (packageConfig.afReleaseRate / 100);
+      }
+    }
+
+    // Total AF released up to current day
+    const totalAfReleased = dailyAfRelease * effectiveDay;
+    const totalAfValue = totalAfReleased * afPrice;
+
+    return {
+      orderId: order.id,
+      packageTier: order.packageTier,
+      amount: order.amount,
+      totalDays,
+      currentDay: effectiveDay,
+      daysRemaining,
+      progressPercent,
+      totalAfReleased,
+      dailyAfRelease,
+      totalAfValue,
+      tradingCapital: order.tradingCapital,
+      isComplete,
+    };
+  });
 }

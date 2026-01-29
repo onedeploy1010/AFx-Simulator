@@ -4,9 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Progress } from "@/components/ui/progress";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulation, formatNumber, formatCurrency } from "@/lib/calculations";
-import { TrendingUp, Coins, Flame, DollarSign, RefreshCw } from "lucide-react";
+import { runSimulation, formatNumber, formatCurrency, calculateOrderReleaseProgress } from "@/lib/calculations";
+import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function ReleasePage() {
@@ -43,6 +44,15 @@ export default function ReleasePage() {
     userProfit: parseFloat(r.userProfit.toFixed(2)),
     burn: parseFloat(r.burnAmountAf.toFixed(2)),
   }));
+
+  // Calculate per-order release progress for current simulation day
+  const orderProgress = useMemo(() => {
+    if (stakingOrders.length === 0) return [];
+    const currentAfPrice = simulationResults.length > 0 
+      ? simulationResults[simulationResults.length - 1].afPrice 
+      : aamPool.afPrice;
+    return calculateOrderReleaseProgress(stakingOrders, config, simulationDays, currentAfPrice);
+  }, [stakingOrders, config, simulationDays, simulationResults, aamPool.afPrice]);
 
   return (
     <div className="p-6 space-y-6">
@@ -182,6 +192,79 @@ export default function ReleasePage() {
               </Card>
             </div>
           )}
+
+          {/* Per-Order Release Progress */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                各订单释放进度
+              </CardTitle>
+              <CardDescription>查看第 {simulationDays} 天每个订单的释放情况</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {orderProgress.map((progress) => (
+                  <div key={progress.orderId} className="p-4 rounded-md border space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={progress.isComplete ? "default" : "secondary"}>
+                          {progress.packageTier} USDC
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          订单 #{progress.orderId.slice(-6)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {progress.isComplete ? (
+                          <Badge variant="default" className="bg-green-500">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            已完成
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">
+                            <Clock className="h-3 w-3 mr-1" />
+                            剩余 {progress.daysRemaining} 天
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>释放进度</span>
+                        <span className="font-medium">{progress.progressPercent.toFixed(1)}%</span>
+                      </div>
+                      <Progress value={progress.progressPercent} className="h-2" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>第 {progress.currentDay} 天 / 共 {progress.totalDays} 天</span>
+                        <span>质押金额: {formatCurrency(progress.amount)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t">
+                      <div>
+                        <p className="text-xs text-muted-foreground">日释放 AF</p>
+                        <p className="text-sm font-medium">{formatNumber(progress.dailyAfRelease)} AF</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">累计释放 AF</p>
+                        <p className="text-sm font-medium">{formatNumber(progress.totalAfReleased)} AF</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">AF 价值</p>
+                        <p className="text-sm font-medium">{formatCurrency(progress.totalAfValue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">交易本金</p>
+                        <p className="text-sm font-medium">{formatCurrency(progress.tradingCapital)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           {totals && (
             <Card>
