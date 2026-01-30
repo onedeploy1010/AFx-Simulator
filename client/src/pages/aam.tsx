@@ -17,21 +17,25 @@ export default function AAMPage() {
 
   const poolHistory = useMemo(() => {
     if (simulationResults.length === 0) {
+      const tvl = aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice;
       return Array.from({ length: 31 }, (_, i) => ({
         day: i,
         price: aamPool.afPrice,
         usdc: aamPool.usdcBalance,
         af: aamPool.afBalance,
+        tvl,
       }));
     }
 
+    const initialTvl = aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice;
     return [
-      { day: 0, price: aamPool.afPrice, usdc: aamPool.usdcBalance, af: aamPool.afBalance },
+      { day: 0, price: aamPool.afPrice, usdc: aamPool.usdcBalance, af: aamPool.afBalance, tvl: initialTvl },
       ...simulationResults.map(r => ({
         day: r.day,
         price: r.afPrice,
-        usdc: aamPool.usdcBalance + r.lpContributionUsdc,
-        af: aamPool.afBalance - r.burnAmountAf,
+        usdc: r.poolUsdcBalance,
+        af: r.poolAfBalance,
+        tvl: r.poolTotalValue,
       }))
     ];
   }, [simulationResults, aamPool]);
@@ -48,6 +52,7 @@ export default function AAMPage() {
   }, [simulationResults, aamPool]);
 
   const initialPrice = calculateInitialPrice(config);
+  const poolTvl = aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice;
   const priceChange = totals ? ((totals.finalPrice / initialPrice) - 1) * 100 : 0;
 
   return (
@@ -68,7 +73,7 @@ export default function AAMPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
@@ -77,6 +82,11 @@ export default function AAMPage() {
             </CardDescription>
             <CardTitle className="text-2xl">{formatCurrency(aamPool.usdcBalance)}</CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              占比 {poolTvl > 0 ? ((aamPool.usdcBalance / poolTvl) * 100).toFixed(1) : 50}%
+            </p>
+          </CardContent>
         </Card>
 
         <Card>
@@ -87,6 +97,11 @@ export default function AAMPage() {
             </CardDescription>
             <CardTitle className="text-2xl">{formatNumber(aamPool.afBalance)}</CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              价值 {formatCurrency(aamPool.afBalance * aamPool.afPrice)}
+            </p>
+          </CardContent>
         </Card>
 
         <Card>
@@ -95,18 +110,43 @@ export default function AAMPage() {
               <TrendingUp className="h-4 w-4" />
               AF 当前价格
             </CardDescription>
-            <CardTitle className="text-2xl">${aamPool.afPrice.toFixed(4)}</CardTitle>
+            <CardTitle className="text-2xl">${aamPool.afPrice.toFixed(6)}</CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              初始价: ${initialPrice.toFixed(6)}
+            </p>
+          </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Droplets className="h-4 w-4" />
-              LP 代币
+              池总价值 (TVL)
             </CardDescription>
-            <CardTitle className="text-2xl">{formatNumber(aamPool.lpTokens)}</CardTitle>
+            <CardTitle className="text-2xl">{formatCurrency(poolTvl)}</CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              USDC + AF 价值
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              USDC / AF 比例
+            </CardDescription>
+            <CardTitle className="text-2xl">1 : {aamPool.afBalance > 0 ? formatNumber(aamPool.afBalance / aamPool.usdcBalance, 0) : '0'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              每1 USDC 对应 AF 数量
+            </p>
+          </CardContent>
         </Card>
       </div>
 
@@ -117,8 +157,11 @@ export default function AAMPage() {
               <RefreshCw className="h-4 w-4" />
               累计回购
             </CardDescription>
-            <CardTitle className="text-xl">{formatNumber(aamPool.totalBuyback)} AF</CardTitle>
+            <CardTitle className="text-xl">{formatCurrency(aamPool.totalBuyback)}</CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">用 USDC 买入 AF</p>
+          </CardContent>
         </Card>
 
         <Card>
@@ -129,6 +172,9 @@ export default function AAMPage() {
             </CardDescription>
             <CardTitle className="text-xl">{formatNumber(aamPool.totalBurn)} AF</CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">价值 {formatCurrency(aamPool.totalBurn * aamPool.afPrice)}</p>
+          </CardContent>
         </Card>
       </div>
 
@@ -218,6 +264,30 @@ export default function AAMPage() {
                   fill="hsl(var(--primary) / 0.2)"
                   strokeWidth={2}
                 />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">30天池总价值 (TVL)</CardTitle>
+          <CardDescription>USDC + AF价值 的变化趋势</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={poolHistory}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="day" tick={{ fontSize: 12 }} tickFormatter={(v) => `Day ${v}`} className="text-muted-foreground" />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} className="text-muted-foreground" />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '6px' }}
+                  formatter={(value: number) => [formatCurrency(value), 'TVL']}
+                  labelFormatter={(label) => `Day ${label}`}
+                />
+                <Area type="monotone" dataKey="tvl" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3) / 0.2)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -334,6 +334,10 @@ export function runSimulation(
       brokerProfit: totalBrokerProfit,
       tradingFeeConsumed: totalTradingFee,
       lpPoolSize: currentPool.lpTokens,
+      // Pool state snapshot
+      poolUsdcBalance: currentPool.usdcBalance,
+      poolAfBalance: currentPool.afBalance,
+      poolTotalValue: currentPool.usdcBalance + currentPool.afBalance * currentPool.afPrice,
       buybackAmountUsdc: 0, // No buyback from trading
       burnAmountAf: totalBurn, // Burn in AF
       // Exit distribution outputs

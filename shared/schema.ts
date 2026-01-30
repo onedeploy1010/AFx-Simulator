@@ -102,6 +102,10 @@ export const dailySimulationSchema = z.object({
   brokerProfit: z.number(),
   tradingFeeConsumed: z.number(),
   lpPoolSize: z.number(),
+  // Pool state snapshot at end of day
+  poolUsdcBalance: z.number(), // USDC in pool
+  poolAfBalance: z.number(), // AF in pool
+  poolTotalValue: z.number(), // Pool TVL in USDC (USDC + AF * price)
   buybackAmountUsdc: z.number(), // Buyback amount in USDC
   burnAmountAf: z.number(), // Burn amount in AF
   // Exit distribution tracking
