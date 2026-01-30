@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/hooks/use-config";
 import { PACKAGE_TIERS, DAYS_MODE_TIERS } from "@shared/schema";
-import { Plus, Trash2, Coins, TrendingUp, Calculator, CircleDollarSign, Calendar, Clock, Play } from "lucide-react";
+import { Plus, Trash2, Coins, TrendingUp, Calculator, CircleDollarSign, Calendar, Clock, Play, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { formatNumber, formatCurrency, calculateInitialPrice, calculateOrderTradingCapital, calculateOrderDailyRelease } from "@/lib/calculations";
+import { formatNumber, formatCurrency, calculateInitialPrice, calculateOrderTradingCapital, calculateOrderDailyRelease, calculateAFExitDistribution } from "@/lib/calculations";
 
 export default function StakingPage() {
-  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders, resetAAMPool, currentSimulationDay, setSimulationDay, advanceToDay } = useConfigStore();
+  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders, resetAAMPool, resetAll, currentSimulationDay, setSimulationDay, advanceToDay } = useConfigStore();
   
   // Calculate initial price for comparison
   const initialPrice = calculateInitialPrice(config);
@@ -26,6 +27,7 @@ export default function StakingPage() {
   const [daysAmount, setDaysAmount] = useState<string>("1000");
   const [daysDuration, setDaysDuration] = useState<number>(30);
   const [targetDay, setTargetDay] = useState<string>("");
+  const [withdrawPercent, setWithdrawPercent] = useState<number>(60);
   
   const selectedPackage = config.packageConfigs.find(p => p.tier === parseInt(selectedTier));
   const defaultStakingDays = selectedPackage?.stakingPeriodDays || 30;
@@ -61,6 +63,7 @@ export default function StakingPage() {
         totalAfToRelease: 0,
         afWithdrawn: 0,
         afKeptInSystem: 0,
+        withdrawPercent,
       });
     }
 
@@ -97,6 +100,7 @@ export default function StakingPage() {
       totalAfToRelease,
       afWithdrawn: 0,
       afKeptInSystem: 0,
+      withdrawPercent,
     });
 
     toast({
@@ -129,12 +133,26 @@ export default function StakingPage() {
           <p className="text-muted-foreground">支持用户叠加多笔质押订单</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
+            onClick={() => {
+              resetAll();
+              toast({
+                title: "已还原默认设置",
+                description: "所有配置、订单和池状态已恢复为默认值",
+              });
+            }}
+            data-testid="button-reset-all"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            还原默认
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => {
               resetAAMPool();
-              toast({ 
-                title: "AAM池已重置", 
+              toast({
+                title: "AAM池已重置",
                 description: `价格: $${calculateInitialPrice(config).toFixed(6)} (${formatCurrency(config.initialLpUsdc)} / ${formatNumber(config.initialLpAf)} AF)`
               });
             }}
@@ -305,7 +323,62 @@ export default function StakingPage() {
             {config.simulationMode === 'days' ? '输入金额和选择周期' : '选择配套档位和数量'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
+          {/* Withdraw Percent Slider — shared by both modes */}
+          <div className="space-y-3 p-4 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <Label>AF 释放提现比例: {withdrawPercent}%</Label>
+              <div className="flex gap-3 text-xs">
+                <span className="text-red-500">提现 {withdrawPercent}%</span>
+                <span className="text-muted-foreground">|</span>
+                <span className="text-green-500">转交易金 {100 - withdrawPercent}%</span>
+              </div>
+            </div>
+            <Slider
+              value={[withdrawPercent]}
+              onValueChange={([v]) => setWithdrawPercent(v)}
+              min={0}
+              max={100}
+              step={5}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>0% — 全部转交易金</span>
+              <span>100% — 全部提现</span>
+            </div>
+            {/* AF flow preview */}
+            {(() => {
+              // Use a sample 100 AF to show proportional flow
+              const sample = calculateAFExitDistribution(100, aamPool.afPrice, withdrawPercent, config);
+              return (
+                <div className="p-3 rounded-md bg-muted/50 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">每 100 AF 释放流向：</p>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                    <div className="p-2 rounded border text-center">
+                      <p className="text-muted-foreground">提现</p>
+                      <p className="font-bold text-red-500">{formatNumber(sample.toWithdrawAf)} AF</p>
+                    </div>
+                    <div className="p-2 rounded border text-center">
+                      <p className="text-muted-foreground">销毁 ({config.afExitBurnRatio}%)</p>
+                      <p className="font-bold text-orange-500">{formatNumber(sample.toBurnAf)} AF</p>
+                    </div>
+                    <div className="p-2 rounded border text-center">
+                      <p className="text-muted-foreground">卖盘 (AAM/CLMM)</p>
+                      <p className="font-bold text-blue-500">{formatNumber(sample.toSecondaryMarketAf)} AF</p>
+                    </div>
+                    <div className="p-2 rounded border text-center">
+                      <p className="text-muted-foreground">转交易金 AF</p>
+                      <p className="font-bold text-green-500">{formatNumber(sample.toConvertAf)} AF</p>
+                    </div>
+                    <div className="p-2 rounded border text-center">
+                      <p className="text-muted-foreground">交易金 USDC</p>
+                      <p className="font-bold text-green-500">{formatCurrency(sample.toTradingCapitalUsdc)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           {config.simulationMode === 'days' ? (
             /* Days Mode Order Creation */
             <div className="space-y-4">
@@ -350,8 +423,9 @@ export default function StakingPage() {
                   const afQty = amt / aamPool.afPrice;
                   const totalRelease = afQty * dc.releaseMultiplier;
                   const dailyRelease = totalRelease / daysDuration;
+                  const dailyExit = calculateAFExitDistribution(dailyRelease, aamPool.afPrice, withdrawPercent, config);
                   return (
-                    <div className="p-3 rounded-md border bg-muted/50 space-y-1">
+                    <div className="p-3 rounded-md border bg-muted/50 space-y-2">
                       <p className="text-sm font-medium">预览计算</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                         <div>
@@ -369,6 +443,24 @@ export default function StakingPage() {
                         <div>
                           <span className="text-muted-foreground">日释放: </span>
                           <span className="font-medium">{formatNumber(dailyRelease)} AF</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs border-t pt-2">
+                        <div>
+                          <span className="text-muted-foreground">日销毁: </span>
+                          <span className="font-medium text-orange-500">{formatNumber(dailyExit.toBurnAf, 4)} AF</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">日卖盘: </span>
+                          <span className="font-medium text-blue-500">{formatNumber(dailyExit.toSecondaryMarketAf, 4)} AF</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">日转交易金: </span>
+                          <span className="font-medium text-green-500">{formatNumber(dailyExit.toConvertAf, 4)} AF</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">交易金: </span>
+                          <span className="font-medium text-green-500">{formatCurrency(dailyExit.toTradingCapitalUsdc)}</span>
                         </div>
                       </div>
                     </div>
@@ -464,83 +556,94 @@ export default function StakingPage() {
             <CardDescription>所有质押订单列表</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>模式</TableHead>
-                    <TableHead>档位</TableHead>
-                    <TableHead>质押金额</TableHead>
-                    <TableHead>交易金</TableHead>
-                    <TableHead>日释放率</TableHead>
-                    {config.stakingEnabled && <TableHead>质押周期</TableHead>}
-                    <TableHead>起始天</TableHead>
-                    <TableHead>已过天数</TableHead>
-                    <TableHead className="w-16"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stakingOrders.slice(0, 20).map((order) => {
-                    const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
-                    // Calculate trading capital dynamically based on current config
-                    const dynamicTradingCapital = calculateOrderTradingCapital(order, config);
-                    const daysSinceStart = Math.max(0, currentSimulationDay - (order.startDay ?? 0));
-                    return (
-                      <TableRow key={order.id}>
-                        <TableCell>
-                          <Badge variant={order.mode === 'days' ? 'default' : 'secondary'}>
-                            {order.mode === 'days' ? '天数' : '配套'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {order.mode === 'days' ? (
-                            <span className="text-sm text-muted-foreground">{order.daysStaked}天</span>
-                          ) : (
-                            <Badge variant="outline">{order.packageTier} USDC</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>{formatCurrency(order.amount)}</TableCell>
-                        <TableCell>
-                          {order.mode === 'days' ? (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          ) : (
-                            <>
-                              {formatCurrency(dynamicTradingCapital)}
-                              <span className="text-xs text-muted-foreground ml-1">({config.tradingCapitalMultiplier}x)</span>
-                            </>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {order.mode === 'days' ? (
-                            <span className="text-sm">
-                              {order.totalAfToRelease ? formatNumber(order.totalAfToRelease / order.daysStaked) : '-'} AF/日
-                            </span>
-                          ) : (
-                            <span>{pkg?.releaseMultiplier}x</span>
-                          )}
-                        </TableCell>
-                        {config.stakingEnabled && <TableCell>{order.daysStaked} 天</TableCell>}
-                        <TableCell>
-                          <Badge variant="outline">Day {order.startDay ?? 0}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{daysSinceStart} 天</span>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeStakingOrder(order.id)}
-                            data-testid={`button-remove-${order.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            <div className="space-y-3">
+              {stakingOrders.slice(0, 20).map((order) => {
+                const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
+                const daysSinceStart = Math.max(0, currentSimulationDay - (order.startDay ?? 0));
+                const dailyAf = calculateOrderDailyRelease(order, config, aamPool.afPrice);
+                const exitDist = calculateAFExitDistribution(dailyAf, aamPool.afPrice, order.withdrawPercent ?? 60, config);
+                return (
+                  <div key={order.id} className="p-4 rounded-md border space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={order.mode === 'days' ? 'default' : 'secondary'}>
+                          {order.mode === 'days' ? '天数' : '配套'}
+                        </Badge>
+                        {order.mode === 'days' ? (
+                          <Badge variant="outline">{order.daysStaked}天</Badge>
+                        ) : (
+                          <Badge variant="outline">{order.packageTier} USDC</Badge>
+                        )}
+                        <span className="text-sm text-muted-foreground">
+                          #{order.id.slice(-6)}
+                        </span>
+                        <Badge variant="outline">Day {order.startDay ?? 0}</Badge>
+                        <span className="text-xs text-muted-foreground">已过 {daysSinceStart} 天</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={order.withdrawPercent === 0 ? "secondary" : order.withdrawPercent === 100 ? "destructive" : "outline"}>
+                          提现 {order.withdrawPercent ?? 60}%
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeStakingOrder(order.id)}
+                          data-testid={`button-remove-${order.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">质押金额</p>
+                        <p className="font-medium">{formatCurrency(order.amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">日释放</p>
+                        <p className="font-medium">{formatNumber(dailyAf, 4)} AF</p>
+                      </div>
+                      {config.stakingEnabled && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">质押周期</p>
+                          <p className="font-medium">{order.daysStaked} 天</p>
+                        </div>
+                      )}
+                      {order.mode !== 'days' && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">释放倍数</p>
+                          <p className="font-medium">{pkg?.releaseMultiplier}x</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* AF flow breakdown */}
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2 p-3 rounded-md bg-muted/50 text-xs">
+                      <div className="text-center">
+                        <p className="text-muted-foreground">日销毁</p>
+                        <p className="font-bold text-orange-500">{formatNumber(exitDist.toBurnAf, 4)} AF</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">日卖盘 (AAM/CLMM)</p>
+                        <p className="font-bold text-blue-500">{formatNumber(exitDist.toSecondaryMarketAf, 4)} AF</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">日转交易金</p>
+                        <p className="font-bold text-green-500">{formatNumber(exitDist.toConvertAf, 4)} AF</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">交易金 (USDC)</p>
+                        <p className="font-bold text-green-500">{formatCurrency(exitDist.toTradingCapitalUsdc)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">日卖盘价值</p>
+                        <p className="font-bold text-blue-500">{formatCurrency(exitDist.toSecondaryMarketAf * aamPool.afPrice)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             {stakingOrders.length > 20 && (
               <p className="mt-2 text-sm text-muted-foreground text-center">
