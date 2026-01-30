@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfigStore } from "@/hooks/use-config";
-import { PACKAGE_TIERS } from "@shared/schema";
-import { Plus, Trash2, Coins, TrendingUp, Calculator, CircleDollarSign } from "lucide-react";
+import { PACKAGE_TIERS, DAYS_MODE_TIERS } from "@shared/schema";
+import { Plus, Trash2, Coins, TrendingUp, Calculator, CircleDollarSign, Calendar, Clock, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatNumber, formatCurrency, calculateInitialPrice, calculateOrderTradingCapital, calculateOrderDailyRelease } from "@/lib/calculations";
 
 export default function StakingPage() {
-  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders, resetAAMPool } = useConfigStore();
+  const { config, stakingOrders, aamPool, addStakingOrder, removeStakingOrder, clearStakingOrders, resetAAMPool, currentSimulationDay, setSimulationDay, advanceToDay } = useConfigStore();
   
   // Calculate initial price for comparison
   const initialPrice = calculateInitialPrice(config);
@@ -23,6 +23,9 @@ export default function StakingPage() {
   
   const [selectedTier, setSelectedTier] = useState<string>("1000");
   const [amount, setAmount] = useState<string>("1");
+  const [daysAmount, setDaysAmount] = useState<string>("1000");
+  const [daysDuration, setDaysDuration] = useState<number>(30);
+  const [targetDay, setTargetDay] = useState<string>("");
   
   const selectedPackage = config.packageConfigs.find(p => p.tier === parseInt(selectedTier));
   const defaultStakingDays = selectedPackage?.stakingPeriodDays || 30;
@@ -42,7 +45,7 @@ export default function StakingPage() {
     // When staking is disabled, use 1 day (instant release)
     const days = config.stakingEnabled ? (parseInt(stakingDays) || defaultStakingDays) : 1;
     const packageConfig = config.packageConfigs.find(p => p.tier === tier);
-    
+
     if (!packageConfig) return;
 
     for (let i = 0; i < count; i++) {
@@ -52,7 +55,12 @@ export default function StakingPage() {
         startDate: new Date().toISOString(),
         daysStaked: days,
         afReleased: 0,
-        tradingCapital: tier * packageConfig.tradingCapitalMultiplier,
+        tradingCapital: tier * config.tradingCapitalMultiplier,
+        mode: 'package',
+        startDay: currentSimulationDay,
+        totalAfToRelease: 0,
+        afWithdrawn: 0,
+        afKeptInSystem: 0,
       });
     }
 
@@ -62,6 +70,40 @@ export default function StakingPage() {
       description: `成功添加 ${count} 笔 ${tier} USDC 订单${daysText}`,
     });
     setAmount("1");
+  };
+
+  const handleAddDaysOrder = () => {
+    const amt = parseFloat(daysAmount) || 1000;
+    if (amt < 100 || amt % 100 !== 0) {
+      toast({ title: "金额无效", description: "金额必须为100的倍数，最低100 USDC", variant: "destructive" });
+      return;
+    }
+    const daysConfig = config.daysConfigs.find(dc => dc.days === daysDuration);
+    if (!daysConfig) return;
+
+    const afQuantity = aamPool.afPrice > 0 ? amt / aamPool.afPrice : 0;
+    const totalAfToRelease = afQuantity * daysConfig.releaseMultiplier;
+
+    addStakingOrder({
+      packageTier: 0,
+      amount: amt,
+      startDate: new Date().toISOString(),
+      daysStaked: daysDuration,
+      durationDays: daysDuration,
+      afReleased: 0,
+      tradingCapital: 0,
+      mode: 'days',
+      startDay: currentSimulationDay,
+      totalAfToRelease,
+      afWithdrawn: 0,
+      afKeptInSystem: 0,
+    });
+
+    toast({
+      title: "天数模式订单已添加",
+      description: `${amt} USDC, ${daysDuration}天, 总释放 ${totalAfToRelease.toFixed(2)} AF`,
+    });
+    setDaysAmount("1000");
   };
 
   const totalStaked = stakingOrders.reduce((sum, order) => sum + order.amount, 0);
@@ -178,65 +220,219 @@ export default function StakingPage() {
         </Card>
       </div>
 
+      {/* Day Simulation Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            模拟日控制
+          </CardTitle>
+          <CardDescription>控制当前模拟天数，观察不同时间点的状态</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">当前模拟天数:</span>
+              <Badge variant="secondary" className="text-lg px-3 py-1">
+                Day {currentSimulationDay}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                placeholder="前进到第N天"
+                value={targetDay}
+                onChange={(e) => setTargetDay(e.target.value)}
+                className="w-36"
+                min={0}
+                max={180}
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  const day = parseInt(targetDay);
+                  if (!isNaN(day) && day >= 0) {
+                    setSimulationDay(day);
+                    setTargetDay("");
+                  }
+                }}
+              >
+                <Play className="h-4 w-4 mr-1" />
+                Go
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[0, 1, 8, 15, 30, 60, 90].map((day) => (
+              <Button
+                key={day}
+                variant={currentSimulationDay === day ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSimulationDay(day)}
+              >
+                Day {day}
+              </Button>
+            ))}
+          </div>
+          {/* Timeline bar */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Day 0</span>
+              <span>Day 30</span>
+              <span>Day 60</span>
+              <span>Day 90</span>
+              <span>Day 180</span>
+            </div>
+            <div className="relative w-full h-3 bg-muted rounded-full overflow-hidden">
+              <div
+                className="absolute left-0 top-0 h-full bg-primary rounded-full transition-all duration-300"
+                style={{ width: `${Math.min((currentSimulationDay / 180) * 100, 100)}%` }}
+              />
+              <div
+                className="absolute top-0 h-full w-0.5 bg-primary-foreground"
+                style={{ left: `${Math.min((currentSimulationDay / 180) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">添加质押订单</CardTitle>
-          <CardDescription>选择配套档位和数量</CardDescription>
+          <CardDescription>
+            {config.simulationMode === 'days' ? '输入金额和选择周期' : '选择配套档位和数量'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="space-y-2 flex-1 min-w-[200px]">
-              <Label>配套档位</Label>
-              <Select value={selectedTier} onValueChange={handleTierChange}>
-                <SelectTrigger data-testid="select-tier">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PACKAGE_TIERS.map((tier) => {
-                    const pkg = config.packageConfigs.find(p => p.tier === tier);
-                    return (
-                      <SelectItem key={tier} value={tier.toString()}>
-                        {tier} USDC ({pkg?.afReleaseRate}%/日, {pkg?.tradingCapitalMultiplier}x交易金)
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+          {config.simulationMode === 'days' ? (
+            /* Days Mode Order Creation */
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-2 w-40">
+                  <Label>质押金额 (USDC)</Label>
+                  <Input
+                    type="number"
+                    value={daysAmount}
+                    onChange={(e) => setDaysAmount(e.target.value)}
+                    min={100}
+                    step={100}
+                    placeholder="100的倍数"
+                    data-testid="input-days-amount"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>质押周期</Label>
+                  <div className="flex gap-2">
+                    {DAYS_MODE_TIERS.map((d) => (
+                      <Button
+                        key={d}
+                        variant={daysDuration === d ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setDaysDuration(d)}
+                      >
+                        {d}天
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <Button onClick={handleAddDaysOrder} data-testid="button-add-days-order">
+                  <Plus className="h-4 w-4 mr-2" />
+                  添加订单
+                </Button>
+              </div>
+              {/* Days mode preview */}
+              {(() => {
+                const amt = parseFloat(daysAmount) || 0;
+                const dc = config.daysConfigs.find(d => d.days === daysDuration);
+                if (amt >= 100 && dc && aamPool.afPrice > 0) {
+                  const afQty = amt / aamPool.afPrice;
+                  const totalRelease = afQty * dc.releaseMultiplier;
+                  const dailyRelease = totalRelease / daysDuration;
+                  return (
+                    <div className="p-3 rounded-md border bg-muted/50 space-y-1">
+                      <p className="text-sm font-medium">预览计算</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">AF数量: </span>
+                          <span className="font-medium">{formatNumber(afQty)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">释放倍数: </span>
+                          <span className="font-medium">{dc.releaseMultiplier}x</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">总释放: </span>
+                          <span className="font-medium">{formatNumber(totalRelease)} AF</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">日释放: </span>
+                          <span className="font-medium">{formatNumber(dailyRelease)} AF</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
-            <div className="space-y-2 w-24">
-              <Label>数量</Label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                min={1}
-                max={100}
-                data-testid="input-amount"
-              />
-            </div>
-            {config.stakingEnabled && (
-              <div className="space-y-2 w-28">
-                <Label>质押周期(天)</Label>
+          ) : (
+            /* Package Mode Order Creation (existing) */
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="space-y-2 flex-1 min-w-[200px]">
+                <Label>配套档位</Label>
+                <Select value={selectedTier} onValueChange={handleTierChange}>
+                  <SelectTrigger data-testid="select-tier">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PACKAGE_TIERS.map((tier) => {
+                      const pkg = config.packageConfigs.find(p => p.tier === tier);
+                      return (
+                        <SelectItem key={tier} value={tier.toString()}>
+                          {tier} USDC ({pkg?.releaseMultiplier}x释放, {config.tradingCapitalMultiplier}x交易金)
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 w-24">
+                <Label>数量</Label>
                 <Input
                   type="number"
-                  value={stakingDays}
-                  onChange={(e) => setStakingDays(e.target.value)}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
                   min={1}
-                  max={365}
-                  data-testid="input-staking-days"
+                  max={100}
+                  data-testid="input-amount"
                 />
               </div>
-            )}
-            <Button onClick={handleAddOrder} data-testid="button-add-order">
-              <Plus className="h-4 w-4 mr-2" />
-              添加订单
-            </Button>
-          {!config.stakingEnabled && (
-            <div className="mt-4 p-3 rounded-md bg-muted text-muted-foreground text-sm">
-              质押周期已禁用，AF 将立即释放
+              {config.stakingEnabled && (
+                <div className="space-y-2 w-28">
+                  <Label>质押周期(天)</Label>
+                  <Input
+                    type="number"
+                    value={stakingDays}
+                    onChange={(e) => setStakingDays(e.target.value)}
+                    min={1}
+                    max={365}
+                    data-testid="input-staking-days"
+                  />
+                </div>
+              )}
+              <Button onClick={handleAddOrder} data-testid="button-add-order">
+                <Plus className="h-4 w-4 mr-2" />
+                添加订单
+              </Button>
+              {!config.stakingEnabled && (
+                <div className="mt-4 p-3 rounded-md bg-muted text-muted-foreground text-sm">
+                  质押周期已禁用，AF 将立即释放
+                </div>
+              )}
             </div>
           )}
-          </div>
         </CardContent>
       </Card>
 
@@ -272,11 +468,14 @@ export default function StakingPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>模式</TableHead>
                     <TableHead>档位</TableHead>
                     <TableHead>质押金额</TableHead>
                     <TableHead>交易金</TableHead>
                     <TableHead>日释放率</TableHead>
                     {config.stakingEnabled && <TableHead>质押周期</TableHead>}
+                    <TableHead>起始天</TableHead>
+                    <TableHead>已过天数</TableHead>
                     <TableHead className="w-16"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -285,18 +484,48 @@ export default function StakingPage() {
                     const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
                     // Calculate trading capital dynamically based on current config
                     const dynamicTradingCapital = calculateOrderTradingCapital(order, config);
+                    const daysSinceStart = Math.max(0, currentSimulationDay - (order.startDay ?? 0));
                     return (
                       <TableRow key={order.id}>
                         <TableCell>
-                          <Badge variant="outline">{order.packageTier} USDC</Badge>
+                          <Badge variant={order.mode === 'days' ? 'default' : 'secondary'}>
+                            {order.mode === 'days' ? '天数' : '配套'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {order.mode === 'days' ? (
+                            <span className="text-sm text-muted-foreground">{order.daysStaked}天</span>
+                          ) : (
+                            <Badge variant="outline">{order.packageTier} USDC</Badge>
+                          )}
                         </TableCell>
                         <TableCell>{formatCurrency(order.amount)}</TableCell>
                         <TableCell>
-                          {formatCurrency(dynamicTradingCapital)}
-                          <span className="text-xs text-muted-foreground ml-1">({pkg?.tradingCapitalMultiplier}x)</span>
+                          {order.mode === 'days' ? (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          ) : (
+                            <>
+                              {formatCurrency(dynamicTradingCapital)}
+                              <span className="text-xs text-muted-foreground ml-1">({config.tradingCapitalMultiplier}x)</span>
+                            </>
+                          )}
                         </TableCell>
-                        <TableCell>{pkg?.afReleaseRate}%</TableCell>
+                        <TableCell>
+                          {order.mode === 'days' ? (
+                            <span className="text-sm">
+                              {order.totalAfToRelease ? formatNumber(order.totalAfToRelease / order.daysStaked) : '-'} AF/日
+                            </span>
+                          ) : (
+                            <span>{pkg?.releaseMultiplier}x</span>
+                          )}
+                        </TableCell>
                         {config.stakingEnabled && <TableCell>{order.daysStaked} 天</TableCell>}
+                        <TableCell>
+                          <Badge variant="outline">Day {order.startDay ?? 0}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{daysSinceStart} 天</span>
+                        </TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"

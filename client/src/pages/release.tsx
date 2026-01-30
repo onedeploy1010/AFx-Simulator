@@ -7,14 +7,17 @@ import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulation, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue } from "@/lib/calculations";
-import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle } from "lucide-react";
+import { runSimulation, runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue } from "@/lib/calculations";
+import DailyDetailsDialog from "@/components/daily-details-dialog";
+import { type OrderDailyDetail } from "@shared/schema";
+import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle, FileText } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function ReleasePage() {
   const { config, stakingOrders, aamPool, clearStakingOrders, resetAAMPool } = useConfigStore();
   const [simulationDays, setSimulationDays] = useState(30);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("all");
+  const [showDailyDetails, setShowDailyDetails] = useState(false);
 
   // Filter orders based on selection
   const filteredOrders = useMemo(() => {
@@ -22,10 +25,13 @@ export default function ReleasePage() {
     return stakingOrders.filter(o => o.id === selectedOrderId);
   }, [stakingOrders, selectedOrderId]);
 
-  const simulationResults = useMemo(() => {
-    if (filteredOrders.length === 0) return [];
-    return runSimulation(filteredOrders, config, simulationDays, aamPool);
+  const simulationData = useMemo(() => {
+    if (filteredOrders.length === 0) return null;
+    return runSimulationWithDetails(filteredOrders, config, simulationDays, aamPool);
   }, [filteredOrders, config, simulationDays, aamPool]);
+
+  const simulationResults = simulationData?.dailySimulations || [];
+  const orderDailyDetails = simulationData?.orderDailyDetails || new Map<string, OrderDailyDetail[]>();
 
   const totals = useMemo(() => {
     if (simulationResults.length === 0) return null;
@@ -136,8 +142,16 @@ export default function ReleasePage() {
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
             {stakingOrders.length} 笔质押订单
           </Badge>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
+            onClick={() => setShowDailyDetails(true)}
+            disabled={stakingOrders.length === 0 || simulationResults.length === 0}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            每日详情
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => {
               clearStakingOrders();
               resetAAMPool();
@@ -421,8 +435,12 @@ export default function ReleasePage() {
                         <Badge variant={progress.isComplete ? "default" : "secondary"}>
                           {progress.packageTier} USDC
                         </Badge>
+                        <Badge variant="outline">{progress.mode === 'days' ? '天数' : '配套'}</Badge>
                         <span className="text-sm text-muted-foreground">
                           订单 #{progress.orderId.slice(-6)}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          起始天 Day {progress.startDay}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -465,12 +483,24 @@ export default function ReleasePage() {
                         <p className="text-xs text-muted-foreground">AF 价值 (USDC)</p>
                         <p className="text-sm font-medium">{formatCurrency(progress.totalAfValue)}</p>
                       </div>
+                      {progress.afKeptInSystem > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">系统内保留 AF</p>
+                          <p className="text-sm font-medium">{formatNumber(progress.afKeptInSystem)} AF</p>
+                        </div>
+                      )}
+                      {progress.afWithdrawn > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">已提取 AF</p>
+                          <p className="text-sm font-medium">{formatNumber(progress.afWithdrawn)} AF</p>
+                        </div>
+                      )}
                     </div>
                     
                     {(() => {
                       const pkg = config.packageConfigs.find(p => p.tier === progress.packageTier);
                       if (!pkg) return null;
-                      const multiplier = pkg.tradingCapitalMultiplier;
+                      const multiplier = config.tradingCapitalMultiplier;
 
                       // Use shared calculation for forex profit
                       const order = filteredOrders.find(o => o.id === progress.orderId);
@@ -904,6 +934,13 @@ export default function ReleasePage() {
           )}
         </>
       )}
+      <DailyDetailsDialog
+        open={showDailyDetails}
+        onOpenChange={setShowDailyDetails}
+        orders={filteredOrders}
+        orderDailyDetails={orderDailyDetails}
+        simulationDays={simulationDays}
+      />
     </div>
   );
 }

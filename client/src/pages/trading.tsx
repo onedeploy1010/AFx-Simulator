@@ -15,6 +15,41 @@ export default function TradingPage() {
 
   const orderSimulations = useMemo(() => {
     return stakingOrders.map(order => {
+      const orderMode = order.mode || 'package';
+
+      if (orderMode === 'days') {
+        const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
+        if (!daysConfig) return null;
+
+        const tradingCapital = (order.afKeptInSystem || 0) * aamPool.afPrice;
+        const dailyVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
+        const forexDetail = calculateOrderDailyForexProfit(order, config, aamPool.afPrice);
+
+        const simulation = calculateTradingSimulation(
+          dailyVolume,
+          daysConfig.tradingProfitRate / 100,
+          daysConfig.tradingFeeRate,
+          daysConfig.profitSharePercent,
+          config
+        );
+
+        return {
+          orderId: order.id,
+          packageTier: order.packageTier,
+          mode: 'days' as const,
+          durationDays: order.durationDays,
+          stakingAmount: order.amount,
+          tradingCapital,
+          dailyVolume,
+          feeRate: daysConfig.tradingFeeRate,
+          profitRate: daysConfig.tradingProfitRate,
+          profitSharePercent: daysConfig.profitSharePercent,
+          grossProfit: forexDetail.grossProfit,
+          netProfit: forexDetail.netProfit,
+          ...simulation,
+        };
+      }
+
       const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
       if (!packageConfig) return null;
 
@@ -33,6 +68,8 @@ export default function TradingPage() {
       return {
         orderId: order.id,
         packageTier: order.packageTier,
+        mode: 'package' as const,
+        durationDays: undefined as number | undefined,
         stakingAmount: order.amount,
         tradingCapital: dynamicTradingCapital,
         dailyVolume: dailyTradingVolume,
@@ -44,7 +81,7 @@ export default function TradingPage() {
         ...simulation,
       };
     }).filter(Boolean);
-  }, [stakingOrders, config]);
+  }, [stakingOrders, config, aamPool.afPrice]);
 
   const totals = useMemo(() => {
     if (orderSimulations.length === 0) return null;
@@ -101,12 +138,19 @@ export default function TradingPage() {
     { name: "外汇储备金", value: totals.period.reserveAmount, color: "hsl(var(--chart-3))" },
   ] : [];
 
-  const packageFeeData = config.packageConfigs.map(pkg => ({
-    tier: `${pkg.tier}`,
-    feeRate: pkg.tradingFeeRate,
-    profitRate: pkg.tradingProfitRate,
-    profitShare: pkg.profitSharePercent,
-  }));
+  const packageFeeData = config.simulationMode === 'days'
+    ? (config.daysConfigs || []).map(dc => ({
+        tier: `${dc.days}天`,
+        feeRate: dc.tradingFeeRate,
+        profitRate: dc.tradingProfitRate,
+        profitShare: dc.profitSharePercent,
+      }))
+    : config.packageConfigs.map(pkg => ({
+        tier: `${pkg.tier}`,
+        feeRate: pkg.tradingFeeRate,
+        profitRate: pkg.tradingProfitRate,
+        profitShare: pkg.profitSharePercent,
+      }));
 
   return (
     <div className="p-6 space-y-6">
@@ -255,9 +299,10 @@ export default function TradingPage() {
                   <div key={sim.orderId} className="p-4 rounded-md border space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
-                        <Badge variant="default">
-                          {sim.packageTier} USDC
+                        <Badge variant={sim.mode === 'days' ? 'default' : 'secondary'}>
+                          {sim.mode === 'days' ? `${sim.durationDays}天` : `${sim.packageTier} USDC`}
                         </Badge>
+                        <Badge variant="outline">{sim.mode === 'days' ? '天数' : '配套'}</Badge>
                         <span className="text-sm text-muted-foreground">
                           订单 #{sim.orderId.slice(-6)}
                         </span>
@@ -432,8 +477,8 @@ export default function TradingPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">各配套交易参数</CardTitle>
-              <CardDescription>不同配套档位的手续费率和利润率</CardDescription>
+              <CardTitle className="text-lg">{config.simulationMode === 'days' ? '各天数交易参数' : '各配套交易参数'}</CardTitle>
+              <CardDescription>{config.simulationMode === 'days' ? '不同天数档位的手续费率和利润率' : '不同配套档位的手续费率和利润率'}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[200px]">

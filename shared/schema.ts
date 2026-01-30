@@ -7,6 +7,13 @@ export type PackageTier = typeof PACKAGE_TIERS[number];
 // AF Release Mode
 export type AFReleaseMode = 'gold_standard' | 'coin_standard';
 
+// Simulation Mode
+export type SimulationMode = 'package' | 'days';
+
+// Days mode tier durations
+export const DAYS_MODE_TIERS = [30, 60, 90, 180] as const;
+export type DaysModeTier = typeof DAYS_MODE_TIERS[number];
+
 // User profit sharing tiers
 export const PROFIT_SHARE_TIERS = [60, 65, 70, 75, 80, 85] as const;
 export type ProfitShareTier = typeof PROFIT_SHARE_TIERS[number];
@@ -18,8 +25,7 @@ export type BrokerLevel = typeof BROKER_LEVELS[number];
 // Package config for each tier
 export const packageConfigSchema = z.object({
   tier: z.number(),
-  afReleaseRate: z.number().min(0).max(100), // AF release interest rate per day
-  tradingCapitalMultiplier: z.number().min(1), // Principal × multiplier
+  releaseMultiplier: z.number().min(0.1), // Total release = investment × multiplier
   stakingPeriodDays: z.number().min(1), // Staking period for this package
   tradingFeeRate: z.number().min(0).max(100), // Trading fee rate for this package
   tradingProfitRate: z.number().min(-100).max(100), // Expected profit rate for this package
@@ -32,14 +38,35 @@ export const packageConfigSchema = z.object({
 
 export type PackageConfig = z.infer<typeof packageConfigSchema>;
 
+// Days mode config for each duration tier
+export const daysConfigSchema = z.object({
+  days: z.number(), // 30, 60, 90, 180
+  releaseMultiplier: z.number().min(1), // Total AF = deposit/price * multiplier
+  tradingFeeRate: z.number().min(0).max(100),
+  tradingProfitRate: z.number().min(-100).max(100),
+  profitSharePercent: z.number().min(0).max(100),
+  withdrawFeePercent: z.number().min(0).max(100), // Fee on AF withdrawal (default 20%)
+});
+
+export type DaysConfig = z.infer<typeof daysConfigSchema>;
+
 // Main configuration schema
 export const afxConfigSchema = z.object({
   // AF Release Mode
   afReleaseMode: z.enum(['gold_standard', 'coin_standard']),
-  
+
+  // Simulation Mode: package (配套模式) or days (天数模式)
+  simulationMode: z.enum(['package', 'days']),
+
   // Package configs (per tier)
   packageConfigs: z.array(packageConfigSchema),
+
+  // Days mode configs (per duration tier)
+  daysConfigs: z.array(daysConfigSchema),
   
+  // Trading capital multiplier (global setting for all packages)
+  tradingCapitalMultiplier: z.number().min(1), // Principal × multiplier = trading capital
+
   // Core settings
   stakingEnabled: z.boolean(), // Whether AF release period is enabled
   releaseStartsTradingDays: z.number().min(0), // Days after staking before trading begins
@@ -88,6 +115,13 @@ export const stakingOrderSchema = z.object({
   daysStaked: z.number(),
   afReleased: z.number(),
   tradingCapital: z.number(),
+  // New fields for mode support
+  mode: z.enum(['package', 'days']).default('package'),
+  startDay: z.number().default(0), // Which simulation day this order was placed
+  durationDays: z.number().optional(), // For days mode
+  totalAfToRelease: z.number().default(0), // For days mode: total AF to release over duration
+  afWithdrawn: z.number().default(0), // AF withdrawn so far
+  afKeptInSystem: z.number().default(0), // AF kept in system (not withdrawn)
 });
 
 export type StakingOrder = z.infer<typeof stakingOrderSchema>;
@@ -122,6 +156,24 @@ export const dailySimulationSchema = z.object({
 
 export type DailySimulation = z.infer<typeof dailySimulationSchema>;
 
+// Per-order daily detail for the popup
+export const orderDailyDetailSchema = z.object({
+  day: z.number(),
+  orderId: z.string(),
+  principalRelease: z.number(), // USDC value of principal component
+  interestRelease: z.number(), // USDC value of interest component
+  dailyAfRelease: z.number(), // AF released this day
+  afPrice: z.number(),
+  cumAfReleased: z.number(), // Cumulative AF released
+  afInSystem: z.number(), // AF kept in system (not withdrawn)
+  tradingCapital: z.number(), // Trading capital from un-withdrawn AF
+  forexIncome: z.number(), // Forex trading income this day
+  withdrawnAf: z.number(), // AF withdrawn this day
+  withdrawFee: z.number(), // Withdraw fee (USDC)
+});
+
+export type OrderDailyDetail = z.infer<typeof orderDailyDetailSchema>;
+
 // Per-order release progress
 export const orderReleaseProgressSchema = z.object({
   orderId: z.string(),
@@ -136,6 +188,11 @@ export const orderReleaseProgressSchema = z.object({
   totalAfValue: z.number(), // Total value of released AF (in USDC)
   tradingCapital: z.number(), // Trading capital allocated
   isComplete: z.boolean(), // Whether release is complete
+  // New fields for mode support
+  mode: z.enum(['package', 'days']).default('package'),
+  startDay: z.number().default(0),
+  afKeptInSystem: z.number().default(0),
+  afWithdrawn: z.number().default(0),
 });
 
 export type OrderReleaseProgress = z.infer<typeof orderReleaseProgressSchema>;
@@ -166,13 +223,23 @@ export const tradingSimulationSchema = z.object({
 
 export type TradingSimulation = z.infer<typeof tradingSimulationSchema>;
 
+// Default days mode configurations
+export const defaultDaysConfigs: DaysConfig[] = [
+  { days: 30, releaseMultiplier: 1.5, tradingFeeRate: 10, tradingProfitRate: 3, profitSharePercent: 60, withdrawFeePercent: 20 },
+  { days: 60, releaseMultiplier: 2.0, tradingFeeRate: 8, tradingProfitRate: 5, profitSharePercent: 65, withdrawFeePercent: 20 },
+  { days: 90, releaseMultiplier: 2.5, tradingFeeRate: 6, tradingProfitRate: 6, profitSharePercent: 75, withdrawFeePercent: 20 },
+  { days: 180, releaseMultiplier: 3.0, tradingFeeRate: 3, tradingProfitRate: 8, profitSharePercent: 80, withdrawFeePercent: 20 },
+];
+
 // Default configuration
 export const defaultConfig: AFxConfig = {
   afReleaseMode: 'gold_standard',
+  simulationMode: 'package',
+  daysConfigs: defaultDaysConfigs,
+  tradingCapitalMultiplier: 3, // Global trading capital multiplier (principal × multiplier)
   packageConfigs: PACKAGE_TIERS.map(tier => ({
     tier,
-    afReleaseRate: tier === 100 ? 0.5 : tier === 500 ? 0.6 : tier === 1000 ? 0.7 : tier === 3000 ? 0.8 : tier === 5000 ? 0.9 : 1.0,
-    tradingCapitalMultiplier: tier === 100 ? 2 : tier === 500 ? 2.5 : tier === 1000 ? 3 : tier === 3000 ? 3.5 : tier === 5000 ? 4 : 5,
+    releaseMultiplier: tier === 100 ? 1.5 : tier === 500 ? 1.8 : tier === 1000 ? 2.0 : tier === 3000 ? 2.5 : tier === 5000 ? 3.0 : 3.5,
     stakingPeriodDays: tier === 100 ? 30 : tier === 500 ? 45 : tier === 1000 ? 60 : tier === 3000 ? 90 : tier === 5000 ? 120 : 180,
     tradingFeeRate: tier === 100 ? 8 : tier === 500 ? 6 : tier === 1000 ? 5 : tier === 3000 ? 4 : tier === 5000 ? 2 : 1,
     tradingProfitRate: tier === 100 ? 3 : tier === 500 ? 4 : tier === 1000 ? 5 : tier === 3000 ? 6 : tier === 5000 ? 7 : 8,

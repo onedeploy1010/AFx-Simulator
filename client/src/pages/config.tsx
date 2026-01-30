@@ -8,13 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { PACKAGE_TIERS } from "@shared/schema";
+import { PACKAGE_TIERS, DAYS_MODE_TIERS } from "@shared/schema";
 import { calculateInitialPrice, calculateDepositReserveRatio } from "@/lib/calculations";
 import { RotateCcw, Save, Settings, Coins, TrendingUp, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ConfigPage() {
-  const { config, setConfig, resetConfig, updatePackageConfig } = useConfigStore();
+  const { config, setConfig, resetConfig, updatePackageConfig, updateDaysConfig } = useConfigStore();
   const { toast } = useToast();
 
   const handleReset = () => {
@@ -66,7 +66,7 @@ export default function ConfigPage() {
           </TabsTrigger>
           <TabsTrigger value="packages" data-testid="tab-packages">
             <Coins className="h-4 w-4 mr-2" />
-            配套设置
+            {config.simulationMode === 'package' ? '配套设置' : '天数设置'}
           </TabsTrigger>
           <TabsTrigger value="trading" data-testid="tab-trading">
             <TrendingUp className="h-4 w-4 mr-2" />
@@ -80,6 +80,36 @@ export default function ConfigPage() {
 
         <TabsContent value="core" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">模拟模式</CardTitle>
+                <CardDescription>选择配套模式或天数模式</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Select
+                  value={config.simulationMode}
+                  onValueChange={(value: 'package' | 'days') =>
+                    setConfig({ simulationMode: value })
+                  }
+                >
+                  <SelectTrigger data-testid="select-simulation-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="package">配套模式</SelectItem>
+                    <SelectItem value="days">天数模式</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="p-3 rounded-md bg-muted">
+                  <p className="text-sm text-muted-foreground">
+                    {config.simulationMode === 'package'
+                      ? "配套模式：使用预设配套档位（100-10000 USDC），每日释放本金+利息"
+                      : "天数模式：自定义金额和天数（30/60/90/180天），按倍数释放AF"}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">AF 释放模式</CardTitle>
@@ -240,6 +270,18 @@ export default function ConfigPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label>交易金倍数: {config.tradingCapitalMultiplier}x</Label>
+                  <Slider
+                    value={[config.tradingCapitalMultiplier]}
+                    onValueChange={([value]) => setConfig({ tradingCapitalMultiplier: value })}
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    data-testid="slider-trading-multiplier"
+                  />
+                  <p className="text-xs text-muted-foreground">交易金 = 质押金额 × 倍数（全局统一设置）</p>
+                </div>
+                <div className="space-y-2">
                   <Label>日交易量 (%): {config.dailyTradingVolumePercent}%</Label>
                   <Slider
                     value={[config.dailyTradingVolumePercent]}
@@ -250,11 +292,6 @@ export default function ConfigPage() {
                     data-testid="slider-daily-volume"
                   />
                   <p className="text-xs text-muted-foreground">每日交易金占交易本金的比例</p>
-                </div>
-                <div className="p-3 rounded-md bg-muted">
-                  <p className="text-sm text-muted-foreground">
-                    AF 转交易金倍率：使用每个配套的"交易金倍数"设置
-                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -283,6 +320,7 @@ export default function ConfigPage() {
         </TabsContent>
 
         <TabsContent value="packages" className="space-y-4">
+          {config.simulationMode === 'package' ? (
           <div className="grid grid-cols-1 gap-4">
             {config.packageConfigs.map((pkg) => (
               <Card key={pkg.tier}>
@@ -296,27 +334,15 @@ export default function ConfigPage() {
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="space-y-2">
-                      <Label>AF 释放利率 (%/天)</Label>
+                      <Label>释放倍数</Label>
                       <Input
                         type="number"
-                        value={pkg.afReleaseRate}
-                        onChange={(e) => updatePackageConfig(pkg.tier, { afReleaseRate: parseFloat(e.target.value) || 0 })}
+                        value={pkg.releaseMultiplier}
+                        onChange={(e) => updatePackageConfig(pkg.tier, { releaseMultiplier: parseFloat(e.target.value) || 1 })}
                         step="0.1"
-                        min={0}
+                        min={0.1}
                         max={10}
-                        data-testid={`input-release-rate-${pkg.tier}`}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>交易金倍数</Label>
-                      <Input
-                        type="number"
-                        value={pkg.tradingCapitalMultiplier}
-                        onChange={(e) => updatePackageConfig(pkg.tier, { tradingCapitalMultiplier: parseFloat(e.target.value) || 1 })}
-                        step="0.5"
-                        min={1}
-                        max={10}
-                        data-testid={`input-multiplier-${pkg.tier}`}
+                        data-testid={`input-release-multiplier-${pkg.tier}`}
                       />
                     </div>
                     {config.stakingEnabled && (
@@ -384,7 +410,7 @@ export default function ConfigPage() {
                           onValueChange={([value]) => {
                             const remaining = 100 - value;
                             const keepRatio = pkg.releaseKeepPercent / (pkg.releaseKeepPercent + pkg.releaseConvertPercent || 1);
-                            updatePackageConfig(pkg.tier, { 
+                            updatePackageConfig(pkg.tier, {
                               releaseWithdrawPercent: value,
                               releaseKeepPercent: Math.round(remaining * keepRatio),
                               releaseConvertPercent: Math.round(remaining * (1 - keepRatio))
@@ -405,7 +431,7 @@ export default function ConfigPage() {
                           onValueChange={([value]) => {
                             const maxValue = 100 - pkg.releaseWithdrawPercent;
                             const newKeep = Math.min(value, maxValue);
-                            updatePackageConfig(pkg.tier, { 
+                            updatePackageConfig(pkg.tier, {
                               releaseKeepPercent: newKeep,
                               releaseConvertPercent: maxValue - newKeep
                             });
@@ -440,6 +466,87 @@ export default function ConfigPage() {
               </Card>
             ))}
           </div>
+          ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {DAYS_MODE_TIERS.map((days) => {
+              const dc = config.daysConfigs.find((d) => d.days === days);
+              if (!dc) return null;
+              return (
+                <Card key={days}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Badge variant="default">{days}天</Badge>
+                      天数设置
+                    </CardTitle>
+                    <CardDescription>设置 {days} 天模式的参数</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="space-y-2">
+                        <Label>释放倍数</Label>
+                        <Input
+                          type="number"
+                          value={dc.releaseMultiplier}
+                          onChange={(e) => updateDaysConfig(days, { releaseMultiplier: parseFloat(e.target.value) || 1 })}
+                          step="0.1"
+                          min={1}
+                          max={10}
+                          data-testid={`input-release-multiplier-${days}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>交易手续费率 (%)</Label>
+                        <Input
+                          type="number"
+                          value={dc.tradingFeeRate}
+                          onChange={(e) => updateDaysConfig(days, { tradingFeeRate: parseFloat(e.target.value) || 0 })}
+                          step="0.5"
+                          min={0}
+                          max={100}
+                          data-testid={`input-days-fee-rate-${days}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>交易利润率 (%)</Label>
+                        <Input
+                          type="number"
+                          value={dc.tradingProfitRate}
+                          onChange={(e) => updateDaysConfig(days, { tradingProfitRate: parseFloat(e.target.value) || 0 })}
+                          step="0.5"
+                          min={-100}
+                          max={100}
+                          data-testid={`input-days-profit-rate-${days}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>用户分成 (%)</Label>
+                        <Input
+                          type="number"
+                          value={dc.profitSharePercent}
+                          onChange={(e) => updateDaysConfig(days, { profitSharePercent: parseFloat(e.target.value) || 0 })}
+                          min={0}
+                          max={100}
+                          data-testid={`input-days-profit-share-${days}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>提现手续费 (%)</Label>
+                        <Input
+                          type="number"
+                          value={dc.withdrawFeePercent}
+                          onChange={(e) => updateDaysConfig(days, { withdrawFeePercent: parseFloat(e.target.value) || 0 })}
+                          min={0}
+                          max={100}
+                          data-testid={`input-days-withdraw-fee-${days}`}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          )}
         </TabsContent>
 
         <TabsContent value="trading" className="space-y-4">

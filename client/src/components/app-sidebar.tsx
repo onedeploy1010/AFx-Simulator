@@ -21,6 +21,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import { useConfigStore } from "@/hooks/use-config";
 
 const menuItems = [
   {
@@ -69,6 +70,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { config } = useConfigStore();
 
   return (
     <Sidebar>
@@ -110,14 +112,22 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-sidebar-foreground/50">配套档位</span>
-          <div className="flex flex-wrap gap-1">
-            {[100, 500, 1000].map((tier) => (
-              <Badge key={tier} variant="secondary" className="text-xs">
-                {tier}
-              </Badge>
-            ))}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-sidebar-foreground/50">当前模式</span>
+            <Badge variant={config.simulationMode === 'days' ? 'default' : 'secondary'} className="text-xs">
+              {config.simulationMode === 'days' ? '天数模式' : '配套模式'}
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-sidebar-foreground/50">配套档位</span>
+            <div className="flex flex-wrap gap-1">
+              {[100, 500, 1000].map((tier) => (
+                <Badge key={tier} variant="secondary" className="text-xs">
+                  {tier}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
       </SidebarFooter>

@@ -1,4 +1,4 @@
-import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress, PackageConfig } from "@shared/schema";
+import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress, PackageConfig, DaysConfig, OrderDailyDetail } from "@shared/schema";
 
 // Calculate trading fee rate based on staking amount
 export function calculateTradingFeeRate(
@@ -22,31 +22,97 @@ export function calculateDailyAFRelease(
 ): number {
   const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
   if (!packageConfig) return 0;
-  
+
   // Check if staking is enabled
   if (!config.stakingEnabled) return 0;
-  
-  if (config.afReleaseMode === 'gold_standard') {
-    // Release based on USDC value
-    const dailyUsdcValue = order.amount * (packageConfig.afReleaseRate / 100);
-    return dailyUsdcValue / afPrice;
+
+  const stakingDays = order.daysStaked;
+  const releaseMultiplier = packageConfig.releaseMultiplier;
+
+  if (config.afReleaseMode === 'coin_standard') {
+    // Coin standard: totalAF = (amount / afPrice) × multiplier, dailyAF = totalAF / stakingDays
+    const coinQuantity = order.amount / afPrice;
+    const totalAf = coinQuantity * releaseMultiplier;
+    return totalAf / stakingDays;
   } else {
-    // Release fixed AF amount
-    return order.amount * (packageConfig.afReleaseRate / 100);
+    // Gold standard: totalUSDC = amount × multiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / afPrice
+    const totalUsdc = order.amount * releaseMultiplier;
+    const dailyUsdc = totalUsdc / stakingDays;
+    return dailyUsdc / afPrice;
   }
 }
 
+// Calculate linear daily release (principal + interest) for package mode
+// Coin standard: totalAF = (amount / afPrice) × releaseMultiplier, dailyAF = totalAF / stakingDays
+// Gold standard: totalUSDC = amount × releaseMultiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / afPrice
+export function calculateLinearDailyRelease(
+  order: StakingOrder,
+  config: AFxConfig,
+  afPrice: number
+): { dailyAf: number; principalUsdc: number; interestUsdc: number } {
+  const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
+  if (!packageConfig || !config.stakingEnabled) return { dailyAf: 0, principalUsdc: 0, interestUsdc: 0 };
+
+  const stakingDays = order.daysStaked;
+  const releaseMultiplier = packageConfig.releaseMultiplier;
+
+  if (config.afReleaseMode === 'coin_standard') {
+    // Coin standard: totalAF = (amount / afPrice) × multiplier, dailyAF = totalAF / stakingDays
+    const coinQuantity = order.amount / afPrice;
+    const totalAf = coinQuantity * releaseMultiplier;
+    const dailyAf = totalAf / stakingDays;
+    // Principal component (USDC equivalent)
+    const principalUsdc = order.amount / stakingDays;
+    // Interest component = total daily value minus principal
+    const interestUsdc = Math.max(0, (dailyAf * afPrice) - principalUsdc);
+    return { dailyAf, principalUsdc, interestUsdc };
+  } else {
+    // Gold standard: totalUSDC = amount × multiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / afPrice
+    const totalUsdc = order.amount * releaseMultiplier;
+    const dailyUsdc = totalUsdc / stakingDays;
+    const dailyAf = dailyUsdc / afPrice;
+    // Principal component
+    const principalUsdc = order.amount / stakingDays;
+    // Interest component = total daily USDC minus principal
+    const interestUsdc = Math.max(0, dailyUsdc - principalUsdc);
+    return { dailyAf, principalUsdc, interestUsdc };
+  }
+}
+
+// Calculate days mode daily release
+// afAtCurrentPrice = amount / afPrice
+// totalAfToRelease = afAtCurrentPrice * releaseMultiplier
+// dailyAf = totalAfToRelease / durationDays
+export function calculateDaysModeDailyRelease(
+  order: StakingOrder,
+  daysConfig: DaysConfig,
+  afPrice: number
+): { dailyAf: number; totalAfToRelease: number } {
+  const afAtCurrentPrice = order.amount / afPrice;
+  const totalAfToRelease = afAtCurrentPrice * daysConfig.releaseMultiplier;
+  const dailyAf = totalAfToRelease / (order.durationDays || daysConfig.days);
+  return { dailyAf, totalAfToRelease };
+}
+
+// Calculate AF-based trading capital
+// Trading capital = un-withdrawn AF value in USDC (afKeptInSystem * afPrice)
+export function calculateAfBasedTradingCapital(
+  afKeptInSystem: number,
+  afPrice: number
+): number {
+  return afKeptInSystem * afPrice;
+}
+
 // Calculate AF exit distribution based on per-package release choice ratios
-// Inputs: afReleased (AF), afPrice (USDC/AF), packageConfig with release percentages and trading capital multiplier
+// Inputs: afReleased (AF), afPrice (USDC/AF), packageConfig with release percentages
 // Outputs: AF units for withdraw/keep/burn, USDC for trading capital
 export function calculateAFExitDistribution(
   afReleased: number,
   afPrice: number,
-  packageConfig: { 
-    releaseWithdrawPercent: number; 
-    releaseKeepPercent: number; 
+  packageConfig: {
+    releaseWithdrawPercent: number;
+    releaseKeepPercent: number;
     releaseConvertPercent: number;
-    tradingCapitalMultiplier: number;
   },
   config: AFxConfig
 ): {
@@ -70,9 +136,9 @@ export function calculateAFExitDistribution(
   const toBurnAf = toWithdrawAf * (config.afExitBurnRatio / 100);
   const toSecondaryMarketAf = toWithdrawAf - toBurnAf;
   
-  // Convert AF to USDC for trading capital using package's trading capital multiplier
-  // AF value in USDC × package multiplier = trading capital
-  const toTradingCapitalUsdc = toConvertAf * afPrice * packageConfig.tradingCapitalMultiplier;
+  // Convert AF to USDC for trading capital using global trading capital multiplier
+  // AF value in USDC × global multiplier = trading capital
+  const toTradingCapitalUsdc = toConvertAf * afPrice * config.tradingCapitalMultiplier;
   
   return {
     toWithdrawAf,
@@ -225,16 +291,42 @@ export function simulateAAMPool(
   return newPool;
 }
 
+// Simulation result type including per-order daily details
+export interface SimulationResult {
+  dailySimulations: DailySimulation[];
+  orderDailyDetails: Map<string, OrderDailyDetail[]>;
+}
+
 // Run full simulation for N days
+// Supports both package mode and days mode orders
 export function runSimulation(
   orders: StakingOrder[],
   config: AFxConfig,
   days: number,
   initialPool: AAMPool
 ): DailySimulation[] {
+  const result = runSimulationWithDetails(orders, config, days, initialPool);
+  return result.dailySimulations;
+}
+
+// Run full simulation returning both daily summaries and per-order details
+export function runSimulationWithDetails(
+  orders: StakingOrder[],
+  config: AFxConfig,
+  days: number,
+  initialPool: AAMPool
+): SimulationResult {
   const results: DailySimulation[] = [];
+  const orderDailyDetails = new Map<string, OrderDailyDetail[]>();
   let currentPool = { ...initialPool };
-  
+
+  // Initialize per-order tracking state
+  const orderState = new Map<string, { cumAfReleased: number; afKeptInSystem: number; afWithdrawn: number }>();
+  for (const order of orders) {
+    orderState.set(order.id, { cumAfReleased: 0, afKeptInSystem: 0, afWithdrawn: 0 });
+    orderDailyDetails.set(order.id, []);
+  }
+
   for (let day = 1; day <= days; day++) {
     let totalAfReleased = 0;
     let totalUserProfit = 0;
@@ -249,82 +341,188 @@ export function runSimulation(
     let totalLpContributionUsdc = 0;
     let totalLpContributionAf = 0;
     let totalAfSellingRevenue = 0;
-    
+
     for (const order of orders) {
-      // Get package config for this order
-      const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
-      if (!packageConfig) continue;
-      
-      // Check if staking period has passed (use order's daysStaked which can be customized)
-      if (!config.stakingEnabled || day > order.daysStaked) continue;
-      
-      // Check if trading has started (releaseStartsTradingDays)
-      const canTrade = day > config.releaseStartsTradingDays;
-      
-      // Calculate AF release for this order
-      const afReleased = calculateDailyAFRelease(order, config, currentPool.afPrice);
-      totalAfReleased += afReleased;
-      
-      // Calculate exit distribution using per-package release choice
-      const exitDist = calculateAFExitDistribution(afReleased, currentPool.afPrice, packageConfig, config);
-      totalBurn += exitDist.toBurnAf;
-      totalToTradingCapital += exitDist.toTradingCapitalUsdc;
-      totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
-      totalToTradingFeeFromExit += exitDist.toKeepAf; // AF kept as trading fee
+      const state = orderState.get(order.id)!;
+      const orderMode = order.mode || 'package';
+      const startDay = order.startDay || 0;
+      const effectiveDay = day - startDay; // Days since this order started
 
-      // Calculate USDC revenue from selling withdrawn AF to LP pool
-      totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
+      // Order hasn't started yet
+      if (effectiveDay < 1) {
+        orderDailyDetails.get(order.id)?.push({
+          day, orderId: order.id,
+          principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
+          afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
+          afInSystem: state.afKeptInSystem, tradingCapital: 0,
+          forexIncome: 0, withdrawnAf: 0, withdrawFee: 0,
+        });
+        continue;
+      }
 
-      // Only simulate trading if trading period has started
-      if (canTrade) {
-        // Calculate trading capital dynamically based on current config
-        const dynamicTradingCapital = order.amount * packageConfig.tradingCapitalMultiplier;
-        // Simulate trading with trading capital (configurable daily volume %)
-        const dailyTradingVolume = dynamicTradingCapital * (config.dailyTradingVolumePercent / 100);
-        totalTradingVolume += dailyTradingVolume;
-        
-        // Use per-package fee rate and profit rate
-        const feeRate = packageConfig.tradingFeeRate;
-        const profitRate = packageConfig.tradingProfitRate / 100;
-        const profitSharePercent = packageConfig.profitSharePercent;
-        
-        // Calculate trading with per-package parameters
-        const tradingSim = calculateTradingSimulation(
-          dailyTradingVolume,
-          profitRate,
-          feeRate,
-          profitSharePercent,
-          config
-        );
-        
-        totalUserProfit += tradingSim.userProfit;
-        totalPlatformProfit += tradingSim.platformProfit;
-        totalBrokerProfit += tradingSim.brokerProfit;
-        totalTradingFee += tradingSim.tradingFee;
-        // Note: Trading does NOT trigger buyback - only LP contributions
-        totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
-        totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+      if (orderMode === 'days') {
+        // Days mode order
+        const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
+        if (!daysConfig) continue;
+
+        const durationDays = order.durationDays || daysConfig.days;
+        // Check if release period has passed
+        if (effectiveDay > durationDays) {
+          orderDailyDetails.get(order.id)?.push({
+            day, orderId: order.id,
+            principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
+            afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
+            afInSystem: state.afKeptInSystem,
+            tradingCapital: calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice),
+            forexIncome: 0, withdrawnAf: 0, withdrawFee: 0,
+          });
+          continue;
+        }
+
+        // Calculate daily AF release for days mode
+        const { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, currentPool.afPrice);
+        totalAfReleased += dailyAf;
+        state.cumAfReleased += dailyAf;
+
+        // In days mode: AF is released daily. User can choose to withdraw (with fee) or keep in system
+        // For simulation: assume all released AF stays in system (generates trading capital)
+        // Withdrawal is tracked but not auto-executed in simulation
+        state.afKeptInSystem += dailyAf;
+
+        // Trading capital from un-withdrawn AF
+        const tradingCapital = calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice);
+
+        // If AF kept (not withdrawn), generate trading income
+        const canTrade = effectiveDay > config.releaseStartsTradingDays;
+        let forexIncome = 0;
+        if (canTrade && tradingCapital > 0) {
+          const dailyTradingVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
+          totalTradingVolume += dailyTradingVolume;
+
+          const tradingSim = calculateTradingSimulation(
+            dailyTradingVolume,
+            daysConfig.tradingProfitRate / 100,
+            daysConfig.tradingFeeRate,
+            daysConfig.profitSharePercent,
+            config
+          );
+
+          forexIncome = tradingSim.userProfit;
+          totalUserProfit += tradingSim.userProfit;
+          totalPlatformProfit += tradingSim.platformProfit;
+          totalBrokerProfit += tradingSim.brokerProfit;
+          totalTradingFee += tradingSim.tradingFee;
+          totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
+          totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+        }
+
+        orderDailyDetails.get(order.id)?.push({
+          day, orderId: order.id,
+          principalRelease: 0, // Days mode doesn't split principal/interest
+          interestRelease: 0,
+          dailyAfRelease: dailyAf,
+          afPrice: currentPool.afPrice,
+          cumAfReleased: state.cumAfReleased,
+          afInSystem: state.afKeptInSystem,
+          tradingCapital,
+          forexIncome,
+          withdrawnAf: 0,
+          withdrawFee: 0,
+        });
+
+      } else {
+        // Package mode order (existing logic with linear release)
+        const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
+        if (!packageConfig) continue;
+
+        // Check if staking period has passed
+        if (!config.stakingEnabled || effectiveDay > order.daysStaked) {
+          orderDailyDetails.get(order.id)?.push({
+            day, orderId: order.id,
+            principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
+            afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
+            afInSystem: state.afKeptInSystem, tradingCapital: 0,
+            forexIncome: 0, withdrawnAf: 0, withdrawFee: 0,
+          });
+          continue;
+        }
+
+        // Check if trading has started
+        const canTrade = effectiveDay > config.releaseStartsTradingDays;
+
+        // Calculate AF release using linear release (principal + interest)
+        const { dailyAf, principalUsdc, interestUsdc } = calculateLinearDailyRelease(order, config, currentPool.afPrice);
+        totalAfReleased += dailyAf;
+        state.cumAfReleased += dailyAf;
+
+        // Calculate exit distribution using per-package release choice
+        const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, packageConfig, config);
+        totalBurn += exitDist.toBurnAf;
+        totalToTradingCapital += exitDist.toTradingCapitalUsdc;
+        totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
+        totalToTradingFeeFromExit += exitDist.toKeepAf;
+
+        // Track AF state
+        state.afWithdrawn += exitDist.toWithdrawAf;
+        state.afKeptInSystem += exitDist.toKeepAf + exitDist.toConvertAf;
+
+        // Calculate USDC revenue from selling withdrawn AF to LP pool
+        totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
+
+        // Trading simulation
+        let forexIncome = 0;
+        if (canTrade) {
+          const dynamicTradingCapital = order.amount * config.tradingCapitalMultiplier;
+          const dailyTradingVolume = dynamicTradingCapital * (config.dailyTradingVolumePercent / 100);
+          totalTradingVolume += dailyTradingVolume;
+
+          const tradingSim = calculateTradingSimulation(
+            dailyTradingVolume,
+            packageConfig.tradingProfitRate / 100,
+            packageConfig.tradingFeeRate,
+            packageConfig.profitSharePercent,
+            config
+          );
+
+          forexIncome = tradingSim.userProfit;
+          totalUserProfit += tradingSim.userProfit;
+          totalPlatformProfit += tradingSim.platformProfit;
+          totalBrokerProfit += tradingSim.brokerProfit;
+          totalTradingFee += tradingSim.tradingFee;
+          totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
+          totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+        }
+
+        orderDailyDetails.get(order.id)?.push({
+          day, orderId: order.id,
+          principalRelease: principalUsdc,
+          interestRelease: interestUsdc,
+          dailyAfRelease: dailyAf,
+          afPrice: currentPool.afPrice,
+          cumAfReleased: state.cumAfReleased,
+          afInSystem: state.afKeptInSystem,
+          tradingCapital: order.amount * config.tradingCapitalMultiplier,
+          forexIncome,
+          withdrawnAf: exitDist.toWithdrawAf,
+          withdrawFee: 0,
+        });
       }
     }
-    
+
     // Convert LP contribution AF from USDC value to AF units
     const lpAfUnits = totalLpContributionAf / currentPool.afPrice;
-    
-    // Update pool:
-    // - Add LP (USDC + AF in ratio)
-    // - Secondary market AF sold to pool (price decreases)
-    // - Burn AF (tracked, not from pool)
+
+    // Update pool
     currentPool = simulateAAMPool(
       currentPool,
-      totalLpContributionUsdc, // USDC added to LP pool
-      lpAfUnits, // AF added to LP pool (converted from USDC value)
-      totalToSecondaryMarket, // AF sold to pool (secondary market exit)
-      totalBurn // AF burned (direct units)
+      totalLpContributionUsdc,
+      lpAfUnits,
+      totalToSecondaryMarket,
+      totalBurn
     );
-    
-    // Track reserve amount from trading capital
+
     const totalReserve = totalTradingVolume * (config.reserveRatio / 100);
-    
+
     results.push({
       day,
       afReleased: totalAfReleased,
@@ -334,26 +532,22 @@ export function runSimulation(
       brokerProfit: totalBrokerProfit,
       tradingFeeConsumed: totalTradingFee,
       lpPoolSize: currentPool.lpTokens,
-      // Pool state snapshot
       poolUsdcBalance: currentPool.usdcBalance,
       poolAfBalance: currentPool.afBalance,
       poolTotalValue: currentPool.usdcBalance + currentPool.afBalance * currentPool.afPrice,
-      buybackAmountUsdc: 0, // No buyback from trading
-      burnAmountAf: totalBurn, // Burn in AF
-      // Exit distribution outputs
-      toSecondaryMarketAf: totalToSecondaryMarket, // AF sold to pool
-      toTradingFeeAf: totalToTradingFeeFromExit, // AF kept as trading fee
-      toTradingCapitalUsdc: totalToTradingCapital, // Already in USDC from calculation
-      // AF selling revenue (USDC received from selling withdrawn AF)
+      buybackAmountUsdc: 0,
+      burnAmountAf: totalBurn,
+      toSecondaryMarketAf: totalToSecondaryMarket,
+      toTradingFeeAf: totalToTradingFeeFromExit,
+      toTradingCapitalUsdc: totalToTradingCapital,
       afSellingRevenueUsdc: totalAfSellingRevenue,
-      // Fund flow outputs (all in USDC)
       lpContributionUsdc: totalLpContributionUsdc,
-      lpContributionAfValue: totalLpContributionAf, // USDC value of AF added to LP
+      lpContributionAfValue: totalLpContributionAf,
       reserveAmountUsdc: totalReserve,
     });
   }
-  
-  return results;
+
+  return { dailySimulations: results, orderDailyDetails };
 }
 
 // ============================================================
@@ -371,9 +565,13 @@ export function calculateDepositReserveRatio(config: AFxConfig): number {
 }
 
 // Calculate per-order trading capital based on current config
-export function calculateOrderTradingCapital(order: StakingOrder, config: AFxConfig): number {
-  const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
-  return order.amount * (pkg?.tradingCapitalMultiplier || 1);
+export function calculateOrderTradingCapital(order: StakingOrder, config: AFxConfig, afPrice?: number): number {
+  const orderMode = order.mode || 'package';
+  if (orderMode === 'days' && afPrice && afPrice > 0) {
+    // Days mode: trading capital from un-withdrawn AF value
+    return calculateAfBasedTradingCapital(order.afKeptInSystem || 0, afPrice);
+  }
+  return order.amount * config.tradingCapitalMultiplier;
 }
 
 // Calculate per-order daily trading volume
@@ -383,18 +581,27 @@ export function calculateOrderDailyVolume(order: StakingOrder, config: AFxConfig
 
 // Calculate per-order daily AF release amount (snapshot at given price)
 export function calculateOrderDailyRelease(order: StakingOrder, config: AFxConfig, afPrice: number): number {
+  const orderMode = order.mode || 'package';
+
+  if (orderMode === 'days') {
+    const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
+    if (!daysConfig || afPrice <= 0) return 0;
+    const { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, afPrice);
+    return dailyAf;
+  }
+
+  // Package mode - use linear release
   const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
   if (!pkg || !config.stakingEnabled) return 0;
-  if (config.afReleaseMode === 'gold_standard') {
-    return (order.amount * (pkg.afReleaseRate / 100)) / afPrice;
-  }
-  return order.amount * (pkg.afReleaseRate / 100);
+  const { dailyAf } = calculateLinearDailyRelease(order, config, afPrice);
+  return dailyAf;
 }
 
 // Calculate per-order daily forex profit breakdown
 export function calculateOrderDailyForexProfit(
   order: StakingOrder,
-  config: AFxConfig
+  config: AFxConfig,
+  afPrice?: number
 ): {
   dailyVolume: number;
   grossProfit: number;
@@ -402,10 +609,35 @@ export function calculateOrderDailyForexProfit(
   netProfit: number;
   userProfit: number;
 } {
+  const orderMode = order.mode || 'package';
+
+  if (orderMode === 'days') {
+    const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
+    if (!daysConfig || !afPrice || afPrice <= 0) return { dailyVolume: 0, grossProfit: 0, tradingFee: 0, netProfit: 0, userProfit: 0 };
+
+    const tradingCapital = calculateAfBasedTradingCapital(order.afKeptInSystem || 0, afPrice);
+    const dailyVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
+    const sim = calculateTradingSimulation(
+      dailyVolume,
+      daysConfig.tradingProfitRate / 100,
+      daysConfig.tradingFeeRate,
+      daysConfig.profitSharePercent,
+      config
+    );
+    const grossProfit = dailyVolume * (daysConfig.tradingProfitRate / 100);
+    return {
+      dailyVolume,
+      grossProfit,
+      tradingFee: sim.tradingFee,
+      netProfit: grossProfit - sim.tradingFee,
+      userProfit: sim.userProfit,
+    };
+  }
+
   const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
   if (!pkg) return { dailyVolume: 0, grossProfit: 0, tradingFee: 0, netProfit: 0, userProfit: 0 };
 
-  const tradingCapital = order.amount * pkg.tradingCapitalMultiplier;
+  const tradingCapital = order.amount * config.tradingCapitalMultiplier;
   const dailyVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
   const sim = calculateTradingSimulation(
     dailyVolume,
@@ -465,6 +697,50 @@ export function calculateOrderReleaseProgress(
   afPrice: number
 ): OrderReleaseProgress[] {
   return orders.map(order => {
+    const orderMode = order.mode || 'package';
+    const startDay = order.startDay || 0;
+    const effectiveDayFromStart = Math.max(0, currentDay - startDay);
+
+    if (orderMode === 'days') {
+      // Days mode order
+      const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
+      const durationDays = order.durationDays || 30;
+      const effectiveDay = Math.min(effectiveDayFromStart, durationDays);
+      const daysRemaining = Math.max(0, durationDays - effectiveDayFromStart);
+      const progressPercent = durationDays > 0 ? (effectiveDay / durationDays) * 100 : 100;
+      const isComplete = effectiveDayFromStart >= durationDays;
+
+      let dailyAfRelease = 0;
+      if (daysConfig && afPrice > 0) {
+        const { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, afPrice);
+        dailyAfRelease = dailyAf;
+      }
+
+      const totalAfReleased = dailyAfRelease * effectiveDay;
+      const totalAfValue = totalAfReleased * afPrice;
+      const tradingCapital = calculateAfBasedTradingCapital(totalAfReleased, afPrice);
+
+      return {
+        orderId: order.id,
+        packageTier: order.packageTier,
+        amount: order.amount,
+        totalDays: durationDays,
+        currentDay: effectiveDay,
+        daysRemaining,
+        progressPercent,
+        totalAfReleased,
+        dailyAfRelease,
+        totalAfValue,
+        tradingCapital,
+        isComplete,
+        mode: 'days' as const,
+        startDay,
+        afKeptInSystem: totalAfReleased,
+        afWithdrawn: 0,
+      };
+    }
+
+    // Package mode
     const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
     if (!packageConfig) {
       return {
@@ -472,7 +748,7 @@ export function calculateOrderReleaseProgress(
         packageTier: order.packageTier,
         amount: order.amount,
         totalDays: order.daysStaked,
-        currentDay,
+        currentDay: currentDay,
         daysRemaining: 0,
         progressPercent: 100,
         totalAfReleased: 0,
@@ -480,32 +756,29 @@ export function calculateOrderReleaseProgress(
         totalAfValue: 0,
         tradingCapital: order.tradingCapital,
         isComplete: true,
+        mode: 'package' as const,
+        startDay,
+        afKeptInSystem: 0,
+        afWithdrawn: 0,
       };
     }
 
     const totalDays = order.daysStaked;
-    const effectiveDay = Math.min(currentDay, totalDays);
-    const daysRemaining = Math.max(0, totalDays - currentDay);
+    const effectiveDay = Math.min(effectiveDayFromStart, totalDays);
+    const daysRemaining = Math.max(0, totalDays - effectiveDayFromStart);
     const progressPercent = totalDays > 0 ? (effectiveDay / totalDays) * 100 : 100;
-    const isComplete = currentDay >= totalDays;
+    const isComplete = effectiveDayFromStart >= totalDays;
 
-    // Calculate daily AF release
+    // Calculate daily AF release using linear release
     let dailyAfRelease = 0;
     if (config.stakingEnabled) {
-      if (config.afReleaseMode === 'gold_standard') {
-        const dailyUsdcValue = order.amount * (packageConfig.afReleaseRate / 100);
-        dailyAfRelease = dailyUsdcValue / afPrice;
-      } else {
-        dailyAfRelease = order.amount * (packageConfig.afReleaseRate / 100);
-      }
+      const { dailyAf } = calculateLinearDailyRelease(order, config, afPrice);
+      dailyAfRelease = dailyAf;
     }
 
-    // Total AF released up to current day
     const totalAfReleased = dailyAfRelease * effectiveDay;
     const totalAfValue = totalAfReleased * afPrice;
-
-    // Calculate trading capital dynamically based on current config
-    const dynamicTradingCapital = order.amount * packageConfig.tradingCapitalMultiplier;
+    const dynamicTradingCapital = order.amount * config.tradingCapitalMultiplier;
 
     return {
       orderId: order.id,
@@ -520,6 +793,10 @@ export function calculateOrderReleaseProgress(
       totalAfValue,
       tradingCapital: dynamicTradingCapital,
       isComplete,
+      mode: 'package' as const,
+      startDay,
+      afKeptInSystem: 0,
+      afWithdrawn: 0,
     };
   });
 }
