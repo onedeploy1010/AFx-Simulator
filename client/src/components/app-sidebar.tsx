@@ -7,6 +7,7 @@ import {
   Droplets,
   Users,
   Target,
+  ClipboardList,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,12 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { useConfigStore } from "@/hooks/use-config";
 
 const menuItems = [
-  {
-    title: "参数配置",
-    url: "/",
-    icon: Settings,
-    description: "统一修改所有参数",
-  },
   {
     title: "质押模拟",
     url: "/staking",
@@ -65,6 +60,18 @@ const menuItems = [
     url: "/broker",
     icon: Users,
     description: "V1-V6 推广收益",
+  },
+  {
+    title: "总收益统计",
+    url: "/summary",
+    icon: ClipboardList,
+    description: "各订单总收益汇总",
+  },
+  {
+    title: "参数配置",
+    url: "/",
+    icon: Settings,
+    description: "统一修改所有参数",
   },
 ];
 
@@ -112,23 +119,11 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-sidebar-foreground/50">当前模式</span>
-            <Badge variant={config.simulationMode === 'days' ? 'default' : 'secondary'} className="text-xs">
-              {config.simulationMode === 'days' ? '天数模式' : '配套模式'}
-            </Badge>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-sidebar-foreground/50">配套档位</span>
-            <div className="flex flex-wrap gap-1">
-              {[100, 500, 1000].map((tier) => (
-                <Badge key={tier} variant="secondary" className="text-xs">
-                  {tier}
-                </Badge>
-              ))}
-            </div>
-          </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-sidebar-foreground/50">当前模式</span>
+          <Badge variant={config.simulationMode === 'days' ? 'default' : 'secondary'} className="text-xs">
+            {config.simulationMode === 'days' ? '天数模式' : '配套模式'}
+          </Badge>
         </div>
       </SidebarFooter>
     </Sidebar>
