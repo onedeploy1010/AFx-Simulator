@@ -14,6 +14,7 @@ import ReleasePage from "@/pages/release";
 import TradingPage from "@/pages/trading";
 import AAMPage from "@/pages/aam";
 import BrokerPage from "@/pages/broker";
+import CLMMPage from "@/pages/clmm";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/trading" component={TradingPage} />
       <Route path="/aam" component={AAMPage} />
       <Route path="/broker" component={BrokerPage} />
+      <Route path="/clmm" component={CLMMPage} />
       <Route component={NotFound} />
     </Switch>
   );

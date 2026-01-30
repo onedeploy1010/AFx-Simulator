@@ -6,6 +6,7 @@ import {
   BarChart3,
   Droplets,
   Users,
+  Target,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,6 +52,12 @@ const menuItems = [
     url: "/aam",
     icon: Droplets,
     description: "LP 池与币价变化",
+  },
+  {
+    title: "CLMM 模拟",
+    url: "/clmm",
+    icon: Target,
+    description: "集中流动性策略模拟",
   },
   {
     title: "经纪人系统",
