@@ -31,6 +31,10 @@ const mergeWithDefaults = (savedConfig: Partial<AFxConfig>): AFxConfig => {
       ...defaultDaysConfigs[i],
       ...dc,
     })) ?? defaultDaysConfigs,
+    // Broker system new fields
+    brokerLayerRates: savedConfig.brokerLayerRates ?? defaultConfig.brokerLayerRates,
+    brokerLevelAccess: savedConfig.brokerLevelAccess ?? defaultConfig.brokerLevelAccess,
+    brokerDividendRates: savedConfig.brokerDividendRates ?? defaultConfig.brokerDividendRates,
   };
 };
 
@@ -43,6 +47,7 @@ interface ConfigStore {
   updatePackageConfig: (tier: number, updates: Partial<PackageConfig>) => void;
   updateDaysConfig: (days: number, updates: Partial<DaysConfig>) => void;
   resetConfig: () => void;
+  resetAll: () => void;
   addStakingOrder: (order: Omit<StakingOrder, "id">) => void;
   removeStakingOrder: (id: string) => void;
   clearStakingOrders: () => void;
@@ -113,6 +118,13 @@ export const useConfigStore = create<ConfigStore>()(
         })),
 
       resetConfig: () => set({ config: defaultConfig, currentSimulationDay: 0 }),
+
+      resetAll: () => set({
+        config: defaultConfig,
+        stakingOrders: [],
+        aamPool: getInitialAAMPool(defaultConfig),
+        currentSimulationDay: 0,
+      }),
 
       addStakingOrder: (order) =>
         set((state) => {
@@ -225,6 +237,7 @@ export const useConfigStore = create<ConfigStore>()(
           totalAfToRelease: o.totalAfToRelease ?? 0,
           afWithdrawn: o.afWithdrawn ?? 0,
           afKeptInSystem: o.afKeptInSystem ?? 0,
+          withdrawPercent: o.withdrawPercent ?? 60,
         }));
 
         return {

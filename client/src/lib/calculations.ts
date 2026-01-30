@@ -103,43 +103,37 @@ export function calculateAfBasedTradingCapital(
   return afKeptInSystem * afPrice;
 }
 
-// Calculate AF exit distribution based on per-package release choice ratios
-// Inputs: afReleased (AF), afPrice (USDC/AF), packageConfig with release percentages
-// Outputs: AF units for withdraw/keep/burn, USDC for trading capital
+// Calculate AF exit distribution based on per-order withdrawal ratio
+// withdrawPercent: 0 = all AF → trading capital, 100 = all AF → withdraw (burn + secondary market)
+// Inputs: afReleased (AF), afPrice (USDC/AF), withdrawPercent (0-100)
+// Outputs: AF units for withdraw/convert/burn, USDC for trading capital
 export function calculateAFExitDistribution(
   afReleased: number,
   afPrice: number,
-  packageConfig: {
-    releaseWithdrawPercent: number;
-    releaseKeepPercent: number;
-    releaseConvertPercent: number;
-  },
+  withdrawPercent: number,
   config: AFxConfig
 ): {
-  toWithdrawAf: number; // AF sold to secondary market
-  toKeepAf: number; // AF kept as trading fee
+  toWithdrawAf: number; // AF withdrawn (before burn)
+  toKeepAf: number; // AF kept as trading fee (always 0 in simplified model)
   toConvertAf: number; // AF converted to trading capital
   toBurnAf: number; // AF burned (from withdraw portion)
   toSecondaryMarketAf: number; // Net AF to secondary market after burn
   toTradingCapitalUsdc: number; // USDC value of converted AF
 } {
-  // Normalize percentages to ensure they sum to 100%
-  const total = packageConfig.releaseWithdrawPercent + packageConfig.releaseKeepPercent + packageConfig.releaseConvertPercent;
-  const normalizer = total > 0 ? 100 / total : 1;
-  
-  // Split by release choice (normalized to sum to 100%)
-  const toWithdrawAf = afReleased * ((packageConfig.releaseWithdrawPercent * normalizer) / 100);
-  const toKeepAf = afReleased * ((packageConfig.releaseKeepPercent * normalizer) / 100);
-  const toConvertAf = afReleased * ((packageConfig.releaseConvertPercent * normalizer) / 100);
-  
-  // From withdrawn portion, some gets burned
+  const wp = Math.max(0, Math.min(100, withdrawPercent));
+
+  // Two-way split: withdraw vs convert to trading capital
+  const toWithdrawAf = afReleased * (wp / 100);
+  const toKeepAf = 0; // Simplified: no "keep as fee" category
+  const toConvertAf = afReleased * ((100 - wp) / 100);
+
+  // From withdrawn portion, some gets burned (afExitBurnRatio, default 20%)
   const toBurnAf = toWithdrawAf * (config.afExitBurnRatio / 100);
   const toSecondaryMarketAf = toWithdrawAf - toBurnAf;
-  
+
   // Convert AF to USDC for trading capital using global trading capital multiplier
-  // AF value in USDC × global multiplier = trading capital
   const toTradingCapitalUsdc = toConvertAf * afPrice * config.tradingCapitalMultiplier;
-  
+
   return {
     toWithdrawAf,
     toKeepAf,
@@ -210,84 +204,154 @@ export function calculateTradingSimulationLegacy(
   return calculateTradingSimulation(tradeVolume, 0.05, feeRate, userProfitSharePercent, config);
 }
 
-// Calculate broker layer distribution
-export function calculateBrokerLayerEarnings(
-  afReleased: number,
-  brokerLevel: string,
-  config: AFxConfig
-): { layer: number; earnings: number }[] {
-  const levelConfig = config.brokerLayerDistribution.find(l => l.level === brokerLevel);
-  if (!levelConfig) return [];
-  
-  return levelConfig.layers.map(layer => ({
-    layer,
-    earnings: afReleased * (levelConfig.ratePerLayer / 100),
-  }));
+// ============================================================
+// Broker system — AF layer income + trading dividend
+// ============================================================
+
+/** Get the layer rate (%) for a given layer number from config */
+export function getLayerRate(layer: number, config: AFxConfig): number {
+  for (const lr of config.brokerLayerRates) {
+    if (layer >= lr.fromLayer && layer <= lr.toLayer) return lr.ratePercent;
+  }
+  return 0;
 }
 
-// Calculate total broker earnings across all 20 layers
-export function calculateTotalBrokerLayerEarnings(
+/** Get the max accessible layer for a broker level */
+export function getMaxLayer(brokerLevel: string, config: AFxConfig): number {
+  const entry = config.brokerLevelAccess.find(e => e.level === brokerLevel);
+  return entry?.maxLayer ?? 0;
+}
+
+/**
+ * Calculate broker AF layer income for a 20-layer tree.
+ * Each layer has AF released; the broker earns `ratePercent%` of each accessible layer.
+ * Inaccessible layers' earnings are "compressed" (passed up to higher-level brokers).
+ */
+export function calculateBrokerLayerAfIncome(
   afReleasedPerLayer: number[],
+  brokerLevel: string,
   config: AFxConfig
-): { level: string; totalEarnings: number; layerDetails: { layer: number; earnings: number }[] }[] {
-  return config.brokerLayerDistribution.map(dist => {
-    const layerDetails = dist.layers.map(layer => {
-      const afAtLayer = afReleasedPerLayer[layer - 1] || 0;
-      return {
-        layer,
-        earnings: afAtLayer * (dist.ratePerLayer / 100),
-      };
-    });
-    
-    return {
-      level: dist.level,
-      totalEarnings: layerDetails.reduce((sum, l) => sum + l.earnings, 0),
-      layerDetails,
-    };
-  });
+): {
+  layers: { layer: number; afReleased: number; rate: number; earnings: number; accessible: boolean }[];
+  totalEarnings: number;
+  compressedEarnings: number;
+} {
+  const maxLayer = getMaxLayer(brokerLevel, config);
+  const layers: { layer: number; afReleased: number; rate: number; earnings: number; accessible: boolean }[] = [];
+  let totalEarnings = 0;
+  let compressedEarnings = 0;
+
+  for (let i = 0; i < 20; i++) {
+    const layer = i + 1;
+    const af = afReleasedPerLayer[i] || 0;
+    const rate = getLayerRate(layer, config);
+    const earnings = af * (rate / 100);
+    const accessible = layer <= maxLayer;
+
+    if (accessible) {
+      totalEarnings += earnings;
+    } else {
+      compressedEarnings += earnings;
+    }
+
+    layers.push({ layer, afReleased: af, rate, earnings, accessible });
+  }
+
+  return { layers, totalEarnings, compressedEarnings };
+}
+
+/**
+ * Calculate broker dividend pool from trading profit flow.
+ * grossProfit → subtract tradingFee → netProfit → user share → remaining 50% broker / 50% platform
+ */
+export function calculateBrokerDividendPool(
+  grossProfit: number,
+  tradingFee: number,
+  profitSharePercent: number
+): { userShare: number; brokerDividendPool: number; platformShare: number } {
+  const netProfit = Math.max(0, grossProfit - tradingFee);
+  const userShare = netProfit * (profitSharePercent / 100);
+  const remaining = netProfit - userShare;
+  return {
+    userShare,
+    brokerDividendPool: remaining * 0.5,
+    platformShare: remaining * 0.5,
+  };
+}
+
+/**
+ * Calculate broker trading dividend using differential (级差) system.
+ * Each level has a dividend rate; the broker earns (own rate - subordinate rate) of the pool.
+ */
+export function calculateBrokerTradingDividend(
+  brokerDividendPool: number,
+  brokerLevel: string,
+  subordinateLevel: string | null,
+  config: AFxConfig
+): { brokerRate: number; subRate: number; differentialRate: number; earnings: number } {
+  const levels = config.brokerLevelAccess.map(e => e.level);
+  const brokerIdx = levels.indexOf(brokerLevel);
+  const subIdx = subordinateLevel ? levels.indexOf(subordinateLevel) : -1;
+
+  const brokerRate = brokerIdx >= 0 ? (config.brokerDividendRates[brokerIdx] ?? 0) : 0;
+  const subRate = subIdx >= 0 ? (config.brokerDividendRates[subIdx] ?? 0) : 0;
+  const differentialRate = Math.max(0, brokerRate - subRate);
+  const earnings = brokerDividendPool * (differentialRate / 100);
+
+  return { brokerRate, subRate, differentialRate, earnings };
 }
 
 // Simulate AAM pool state after operations
-// Handles: LP addition, AF sell to pool (secondary market), burn
+// Handles: LP addition, AF sell to pool (secondary market), buyback, burn
 export function simulateAAMPool(
   currentPool: AAMPool,
   usdcAddedToLp: number, // USDC added to LP pool
   afAddedToLp: number, // AF added to LP pool (for LP ratio)
   afSoldToPool: number, // AF sold to pool (secondary market exit, increases AF, decreases USDC)
-  burnAf: number // AF burned (direct AF units)
+  burnAf: number, // AF burned (direct AF units)
+  buybackUsdc: number = 0 // USDC used to buy AF from pool (price UP)
 ): AAMPool {
   let newPool = { ...currentPool };
-  const afPrice = newPool.afPrice > 0 ? newPool.afPrice : 1;
-  
+
   // Step 1: Add liquidity (both USDC and AF in ratio) - price stays same
   if (usdcAddedToLp > 0 || afAddedToLp > 0) {
     newPool.usdcBalance += usdcAddedToLp;
     newPool.afBalance += afAddedToLp;
-    // Price should stay the same if adding in ratio
   }
-  
+
   // Step 2: AF sold to pool (secondary market exit)
   // AF enters pool, USDC exits -> price DECREASES
   if (afSoldToPool > 0) {
     const usdcReceived = afSoldToPool * newPool.afPrice;
-    // Limit USDC withdrawal to available balance (keep minimum)
     const maxUsdcWithdraw = Math.max(0, newPool.usdcBalance - 1);
     const actualUsdcOut = Math.min(usdcReceived, maxUsdcWithdraw);
     const actualAfIn = actualUsdcOut / newPool.afPrice;
-    
+
     newPool.afBalance += actualAfIn;
     newPool.usdcBalance -= actualUsdcOut;
   }
-  
-  // Step 3: Burn AF
-  // AF removed from supply (not from pool, just tracked)
+
+  // Step 3: Buyback AF (USDC enters pool, AF exits -> price INCREASES)
+  if (buybackUsdc > 0 && newPool.afBalance > 1 && newPool.afPrice > 0) {
+    const maxAfCanBuy = Math.max(0, newPool.afBalance - 1);
+    const afWantToBuy = buybackUsdc / newPool.afPrice;
+    const afBought = Math.min(afWantToBuy, maxAfCanBuy);
+    if (afBought > 0) {
+      const actualUsdc = afBought * newPool.afPrice;
+      newPool.usdcBalance += actualUsdc;
+      newPool.afBalance -= afBought;
+      newPool.totalBuyback += actualUsdc;
+    }
+  }
+
+  // Step 4: Burn AF (removed from supply, not from pool)
   newPool.totalBurn += burnAf;
-  
+
   // Recalculate price
   newPool.afBalance = Math.max(1, newPool.afBalance);
   newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
   newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
-  
+
   return newPool;
 }
 
@@ -341,6 +405,7 @@ export function runSimulationWithDetails(
     let totalLpContributionUsdc = 0;
     let totalLpContributionAf = 0;
     let totalAfSellingRevenue = 0;
+    let totalBuybackUsdc = 0;
 
     for (const order of orders) {
       const state = orderState.get(order.id)!;
@@ -384,10 +449,19 @@ export function runSimulationWithDetails(
         totalAfReleased += dailyAf;
         state.cumAfReleased += dailyAf;
 
-        // In days mode: AF is released daily. User can choose to withdraw (with fee) or keep in system
-        // For simulation: assume all released AF stays in system (generates trading capital)
-        // Withdrawal is tracked but not auto-executed in simulation
-        state.afKeptInSystem += dailyAf;
+        // Apply exit distribution using per-order withdrawal ratio
+        const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, order.withdrawPercent ?? 60, config);
+        totalBurn += exitDist.toBurnAf;
+        totalToTradingCapital += exitDist.toTradingCapitalUsdc;
+        totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
+        totalToTradingFeeFromExit += exitDist.toKeepAf;
+
+        // Track AF state: only non-withdrawn portion stays in system
+        state.afWithdrawn += exitDist.toWithdrawAf;
+        state.afKeptInSystem += exitDist.toConvertAf;
+
+        // Calculate USDC revenue from selling withdrawn AF to LP pool
+        totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
 
         // Trading capital from un-withdrawn AF
         const tradingCapital = calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice);
@@ -412,6 +486,7 @@ export function runSimulationWithDetails(
           totalPlatformProfit += tradingSim.platformProfit;
           totalBrokerProfit += tradingSim.brokerProfit;
           totalTradingFee += tradingSim.tradingFee;
+          totalBuybackUsdc += tradingSim.buybackAmount;
           totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
           totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
         }
@@ -426,7 +501,7 @@ export function runSimulationWithDetails(
           afInSystem: state.afKeptInSystem,
           tradingCapital,
           forexIncome,
-          withdrawnAf: 0,
+          withdrawnAf: exitDist.toWithdrawAf,
           withdrawFee: 0,
         });
 
@@ -455,8 +530,8 @@ export function runSimulationWithDetails(
         totalAfReleased += dailyAf;
         state.cumAfReleased += dailyAf;
 
-        // Calculate exit distribution using per-package release choice
-        const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, packageConfig, config);
+        // Calculate exit distribution using per-order withdrawal ratio
+        const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, order.withdrawPercent ?? 60, config);
         totalBurn += exitDist.toBurnAf;
         totalToTradingCapital += exitDist.toTradingCapitalUsdc;
         totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
@@ -489,6 +564,7 @@ export function runSimulationWithDetails(
           totalPlatformProfit += tradingSim.platformProfit;
           totalBrokerProfit += tradingSim.brokerProfit;
           totalTradingFee += tradingSim.tradingFee;
+          totalBuybackUsdc += tradingSim.buybackAmount;
           totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
           totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
         }
@@ -512,13 +588,14 @@ export function runSimulationWithDetails(
     // Convert LP contribution AF from USDC value to AF units
     const lpAfUnits = totalLpContributionAf / currentPool.afPrice;
 
-    // Update pool
+    // Update pool (including buyback from trading fund flow)
     currentPool = simulateAAMPool(
       currentPool,
       totalLpContributionUsdc,
       lpAfUnits,
       totalToSecondaryMarket,
-      totalBurn
+      totalBurn,
+      totalBuybackUsdc
     );
 
     const totalReserve = totalTradingVolume * (config.reserveRatio / 100);
@@ -535,7 +612,7 @@ export function runSimulationWithDetails(
       poolUsdcBalance: currentPool.usdcBalance,
       poolAfBalance: currentPool.afBalance,
       poolTotalValue: currentPool.usdcBalance + currentPool.afBalance * currentPool.afPrice,
-      buybackAmountUsdc: 0,
+      buybackAmountUsdc: totalBuybackUsdc,
       burnAmountAf: totalBurn,
       toSecondaryMarketAf: totalToSecondaryMarket,
       toTradingFeeAf: totalToTradingFeeFromExit,
@@ -661,10 +738,10 @@ export function calculateOrderDailyForexProfit(
 export function calculateOrderAfSellingRevenue(
   totalAfReleased: number,
   afPrice: number,
-  packageConfig: PackageConfig,
+  withdrawPercent: number,
   config: AFxConfig
 ): { soldAf: number; revenueUsdc: number } {
-  const exitDist = calculateAFExitDistribution(totalAfReleased, afPrice, packageConfig, config);
+  const exitDist = calculateAFExitDistribution(totalAfReleased, afPrice, withdrawPercent, config);
   return {
     soldAf: exitDist.toSecondaryMarketAf,
     revenueUsdc: exitDist.toSecondaryMarketAf * afPrice,

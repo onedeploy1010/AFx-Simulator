@@ -615,26 +615,35 @@ export default function ConfigPage() {
         <TabsContent value="broker" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">经纪人等级晋升比例</CardTitle>
-              <CardDescription>V1-V6 各等级的晋升要求</CardDescription>
+              <CardTitle className="text-lg">层级费率设置</CardTitle>
+              <CardDescription>20层体系中各层的AF释放收益费率</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                {config.brokerPromotionRatios.map((ratio, index) => (
-                  <div key={index} className="space-y-2">
-                    <Label>V{index + 1} (%)</Label>
-                    <Input
-                      type="number"
-                      value={ratio}
-                      onChange={(e) => {
-                        const newRatios = [...config.brokerPromotionRatios];
-                        newRatios[index] = parseFloat(e.target.value) || 0;
-                        setConfig({ brokerPromotionRatios: newRatios });
-                      }}
-                      min={0}
-                      max={100}
-                      data-testid={`input-broker-ratio-${index}`}
-                    />
+              <div className="space-y-4">
+                {config.brokerLayerRates.map((lr, index) => (
+                  <div key={index} className="flex items-center gap-4 p-3 rounded-md border">
+                    <Badge variant="outline">第 {lr.fromLayer}-{lr.toLayer} 层</Badge>
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground">
+                        共 {lr.toLayer - lr.fromLayer + 1} 层
+                      </p>
+                    </div>
+                    <div className="w-24">
+                      <Input
+                        type="number"
+                        value={lr.ratePercent}
+                        onChange={(e) => {
+                          const newRates = [...config.brokerLayerRates];
+                          newRates[index] = { ...lr, ratePercent: parseFloat(e.target.value) || 0 };
+                          setConfig({ brokerLayerRates: newRates });
+                        }}
+                        min={0}
+                        max={20}
+                        step={0.5}
+                        data-testid={`input-layer-rate-${index}`}
+                      />
+                    </div>
+                    <span className="text-sm text-muted-foreground">%/层</span>
                   </div>
                 ))}
               </div>
@@ -643,34 +652,51 @@ export default function ConfigPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">层级分配设置</CardTitle>
-              <CardDescription>20层推广体系的分配规则</CardDescription>
+              <CardTitle className="text-lg">等级访问层级</CardTitle>
+              <CardDescription>V1-V6 各等级可访问的最大层级</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {config.brokerLayerDistribution.map((dist, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 rounded-md border">
-                    <Badge variant="outline" className="w-12">{dist.level}</Badge>
-                    <div className="flex-1">
-                      <p className="text-sm">层级: {dist.layers.join(', ')}</p>
-                    </div>
-                    <div className="w-24">
-                      <Input
-                        type="number"
-                        value={dist.ratePerLayer}
-                        onChange={(e) => {
-                          const newDist = [...config.brokerLayerDistribution];
-                          newDist[index] = { ...dist, ratePerLayer: parseFloat(e.target.value) || 0 };
-                          setConfig({ brokerLayerDistribution: newDist });
-                        }}
-                        min={0}
-                        max={20}
-                        data-testid={`input-layer-rate-${index}`}
-                      />
-                    </div>
-                    <span className="text-sm text-muted-foreground">%/层</span>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                {config.brokerLevelAccess.map((la) => (
+                  <div key={la.level} className="p-3 rounded-md border text-center">
+                    <Badge variant="default" className="mb-2">{la.level}</Badge>
+                    <p className="text-lg font-bold">{la.maxLayer} 层</p>
+                    <p className="text-xs text-muted-foreground">第 1-{la.maxLayer} 层</p>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">交易分红级差比例</CardTitle>
+              <CardDescription>V1-V6 各等级的交易利润分红比例（级差制度）</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+                {config.brokerDividendRates.map((rate, index) => (
+                  <div key={index} className="space-y-2">
+                    <Label>V{index + 1} (%)</Label>
+                    <Input
+                      type="number"
+                      value={rate}
+                      onChange={(e) => {
+                        const newRates = [...config.brokerDividendRates];
+                        newRates[index] = parseFloat(e.target.value) || 0;
+                        setConfig({ brokerDividendRates: newRates });
+                      }}
+                      min={0}
+                      max={100}
+                      data-testid={`input-dividend-rate-${index}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 p-3 rounded-md bg-muted">
+                <p className="text-sm text-muted-foreground">
+                  级差制度：高级经纪人赚取自己比例与下级比例的差额。例如 V3(50%) 下属 V1(30%)，V3 赚差额 20%。
+                </p>
               </div>
             </CardContent>
           </Card>

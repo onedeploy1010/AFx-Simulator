@@ -95,13 +95,17 @@ export const afxConfigSchema = z.object({
   buybackRatio: z.number().min(0).max(100), // % to buyback
   reserveRatio: z.number().min(0).max(100), // % to forex reserve
   
-  // Broker system
-  brokerPromotionRatios: z.array(z.number()), // V1-V6 promotion rates
-  brokerLayerDistribution: z.array(z.object({
-    level: z.string(),
-    layers: z.array(z.number()),
-    ratePerLayer: z.number(),
+  // Broker system — layer rates, level access, dividend rates
+  brokerLayerRates: z.array(z.object({
+    fromLayer: z.number(),
+    toLayer: z.number(),
+    ratePercent: z.number(),
   })),
+  brokerLevelAccess: z.array(z.object({
+    level: z.string(),
+    maxLayer: z.number(),
+  })),
+  brokerDividendRates: z.array(z.number()), // V1-V6 differential dividend rates
 });
 
 export type AFxConfig = z.infer<typeof afxConfigSchema>;
@@ -122,6 +126,10 @@ export const stakingOrderSchema = z.object({
   totalAfToRelease: z.number().default(0), // For days mode: total AF to release over duration
   afWithdrawn: z.number().default(0), // AF withdrawn so far
   afKeptInSystem: z.number().default(0), // AF kept in system (not withdrawn)
+  // Per-order AF release withdrawal ratio (0-100)
+  // 0% = all AF → trading capital (no sell pressure)
+  // 100% = all AF → withdraw → burn portion + secondary market sell pressure
+  withdrawPercent: z.number().min(0).max(100).default(60),
 });
 
 export type StakingOrder = z.infer<typeof stakingOrderSchema>;
@@ -225,16 +233,16 @@ export type TradingSimulation = z.infer<typeof tradingSimulationSchema>;
 
 // Default days mode configurations
 export const defaultDaysConfigs: DaysConfig[] = [
-  { days: 30, releaseMultiplier: 1.5, tradingFeeRate: 10, tradingProfitRate: 3, profitSharePercent: 60, withdrawFeePercent: 20 },
-  { days: 60, releaseMultiplier: 2.0, tradingFeeRate: 8, tradingProfitRate: 5, profitSharePercent: 65, withdrawFeePercent: 20 },
-  { days: 90, releaseMultiplier: 2.5, tradingFeeRate: 6, tradingProfitRate: 6, profitSharePercent: 75, withdrawFeePercent: 20 },
-  { days: 180, releaseMultiplier: 3.0, tradingFeeRate: 3, tradingProfitRate: 8, profitSharePercent: 80, withdrawFeePercent: 20 },
+  { days: 30, releaseMultiplier: 1.4, tradingFeeRate: 10, tradingProfitRate: 10, profitSharePercent: 60, withdrawFeePercent: 20 },
+  { days: 60, releaseMultiplier: 1.6, tradingFeeRate: 8, tradingProfitRate: 10, profitSharePercent: 65, withdrawFeePercent: 20 },
+  { days: 90, releaseMultiplier: 1.8, tradingFeeRate: 6, tradingProfitRate: 10, profitSharePercent: 75, withdrawFeePercent: 20 },
+  { days: 180, releaseMultiplier: 2.0, tradingFeeRate: 3, tradingProfitRate: 10, profitSharePercent: 80, withdrawFeePercent: 20 },
 ];
 
 // Default configuration
 export const defaultConfig: AFxConfig = {
   afReleaseMode: 'gold_standard',
-  simulationMode: 'package',
+  simulationMode: 'days',
   daysConfigs: defaultDaysConfigs,
   tradingCapitalMultiplier: 3, // Global trading capital multiplier (principal × multiplier)
   packageConfigs: PACKAGE_TIERS.map(tier => ({
@@ -250,8 +258,8 @@ export const defaultConfig: AFxConfig = {
   })),
   stakingEnabled: true,
   releaseStartsTradingDays: 0, // Trading starts immediately
-  initialLpUsdc: 1000000, // 1M USDC initial LP
-  initialLpAf: 10000000, // 10M AF initial LP
+  initialLpUsdc: 10000, // 10K USDC initial LP
+  initialLpAf: 100000, // 100K AF initial LP
   depositLpRatio: 30, // 30% of deposits to LP
   depositBuybackRatio: 20, // 20% of deposits to buyback
   // Remaining 50% goes to trading reserve
@@ -262,15 +270,19 @@ export const defaultConfig: AFxConfig = {
   lpPoolAfRatio: 30,
   buybackRatio: 20,
   reserveRatio: 50,
-  brokerPromotionRatios: [40, 50, 60, 70, 85, 100],
-  brokerLayerDistribution: [
-    { level: 'V1', layers: [1, 2, 3, 4], ratePerLayer: 4 },
-    { level: 'V2', layers: [5, 6, 7, 8], ratePerLayer: 4 },
-    { level: 'V3', layers: [9, 10, 11], ratePerLayer: 3 },
-    { level: 'V4', layers: [12, 13, 14], ratePerLayer: 3 },
-    { level: 'V5', layers: [15, 16, 17], ratePerLayer: 3 },
-    { level: 'V6', layers: [18, 19, 20], ratePerLayer: 3 },
+  brokerLayerRates: [
+    { fromLayer: 1, toLayer: 8, ratePercent: 4 },
+    { fromLayer: 9, toLayer: 20, ratePercent: 3 },
   ],
+  brokerLevelAccess: [
+    { level: 'V1', maxLayer: 3 },
+    { level: 'V2', maxLayer: 8 },
+    { level: 'V3', maxLayer: 11 },
+    { level: 'V4', maxLayer: 14 },
+    { level: 'V5', maxLayer: 17 },
+    { level: 'V6', maxLayer: 20 },
+  ],
+  brokerDividendRates: [30, 40, 50, 60, 75, 90],
 };
 
 // Keep existing user schema for compatibility
