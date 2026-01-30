@@ -1,23 +1,22 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulation, runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue } from "@/lib/calculations";
+import { runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue } from "@/lib/calculations";
 import DailyDetailsDialog from "@/components/daily-details-dialog";
 import { type OrderDailyDetail } from "@shared/schema";
 import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle, FileText } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function ReleasePage() {
-  const { config, stakingOrders, aamPool, clearStakingOrders, resetAAMPool } = useConfigStore();
-  const [simulationDays, setSimulationDays] = useState(30);
+  const { config, stakingOrders, aamPool, clearStakingOrders, resetAAMPool, currentSimulationDay } = useConfigStore();
+  const simulationDays = Math.max(1, currentSimulationDay);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("all");
   const [showDailyDetails, setShowDailyDetails] = useState(false);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   // Filter orders based on selection
   const filteredOrders = useMemo(() => {
@@ -133,15 +132,31 @@ export default function ReleasePage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold">释放进度</h1>
-          <p className="text-muted-foreground">查看第 N 天 AF 释放情况</p>
+          <p className="text-muted-foreground">当前 Day {currentSimulationDay}，在质押模拟页面前进天数</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
             {stakingOrders.length} 笔质押订单
           </Badge>
+          <Badge variant="outline">
+            Day {currentSimulationDay}
+          </Badge>
+          <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+            <SelectTrigger className="w-[200px]" data-testid="select-order-filter">
+              <SelectValue placeholder="选择订单" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部订单 ({stakingOrders.length}笔)</SelectItem>
+              {stakingOrders.map((order) => (
+                <SelectItem key={order.id} value={order.id}>
+                  {order.mode === 'days' ? `${order.durationDays}天` : `${order.packageTier} USDC`} - #{order.id.slice(-6)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             onClick={() => setShowDailyDetails(true)}
@@ -165,65 +180,28 @@ export default function ReleasePage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">模拟设置</CardTitle>
-          <CardDescription>选择订单和模拟周期</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-end gap-6 flex-wrap">
-            <div className="space-y-2 min-w-[200px]">
-              <Label>选择订单</Label>
-              <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
-                <SelectTrigger data-testid="select-order-filter">
-                  <SelectValue placeholder="选择订单" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部订单 ({stakingOrders.length}笔)</SelectItem>
-                  {stakingOrders.map((order) => (
-                    <SelectItem key={order.id} value={order.id}>
-                      {order.packageTier} USDC - #{order.id.slice(-6)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {currentSimulationDay === 0 && (
+        <Card>
+          <CardContent className="py-6">
+            <div className="text-center text-muted-foreground">
+              <p>当前 Day 0，请先在质押模拟页面前进天数来查看释放进度</p>
             </div>
-            <div className="flex-1 space-y-2">
-              <Label>模拟天数: {simulationDays} 天</Label>
-              <Slider
-                value={[simulationDays]}
-                onValueChange={([value]) => setSimulationDays(value)}
-                min={7}
-                max={365}
-                step={1}
-                data-testid="slider-sim-days"
-              />
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {[30, 60, 90, 180, 365].map(days => (
-                <Button
-                  key={days}
-                  variant={simulationDays === days ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSimulationDays(days)}
-                >
-                  {days}天
-                </Button>
-              ))}
-            </div>
-          </div>
-          {selectedOrderId !== "all" && (
-            <div className="p-3 rounded-md bg-muted">
-              <p className="text-sm">
-                当前查看: <Badge variant="default">{filteredOrders[0]?.packageTier} USDC</Badge>
-                <span className="text-muted-foreground ml-2">
-                  订单 #{selectedOrderId.slice(-6)} | 质押 {filteredOrders[0]?.daysStaked} 天
-                </span>
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedOrderId !== "all" && (
+        <Card>
+          <CardContent className="py-3">
+            <p className="text-sm">
+              当前查看: <Badge variant="default">{filteredOrders[0]?.packageTier} USDC</Badge>
+              <span className="text-muted-foreground ml-2">
+                订单 #{selectedOrderId.slice(-6)} | 质押 {filteredOrders[0]?.daysStaked} 天
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {stakingOrders.length === 0 ? (
         <Card>
@@ -455,6 +433,15 @@ export default function ReleasePage() {
                             剩余 {progress.daysRemaining} 天
                           </Badge>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDetailOrderId(progress.orderId)}
+                          disabled={simulationResults.length === 0}
+                        >
+                          <FileText className="h-3 w-3 mr-1" />
+                          每日详情
+                        </Button>
                       </div>
                     </div>
                     
@@ -515,7 +502,7 @@ export default function ReleasePage() {
                       const currentAfPrice = simulationResults.length > 0
                         ? simulationResults[Math.min(progress.currentDay - 1, simulationResults.length - 1)]?.afPrice || aamPool.afPrice
                         : aamPool.afPrice;
-                      const afSelling = calculateOrderAfSellingRevenue(progress.totalAfReleased, currentAfPrice, pkg, config);
+                      const afSelling = calculateOrderAfSellingRevenue(progress.totalAfReleased, currentAfPrice, order?.withdrawPercent ?? 60, config);
                       const soldAf = afSelling.soldAf;
                       const afSellingRevenue = afSelling.revenueUsdc;
 
@@ -941,6 +928,23 @@ export default function ReleasePage() {
         orderDailyDetails={orderDailyDetails}
         simulationDays={simulationDays}
       />
+      {detailOrderId && (() => {
+        const order = stakingOrders.find(o => o.id === detailOrderId);
+        if (!order) return null;
+        // Run a dedicated simulation for this single order, from its own day 0
+        const singleOrder = { ...order, startDay: 0 };
+        const orderElapsed = Math.max(1, currentSimulationDay - (order.startDay ?? 0));
+        const singleResult = runSimulationWithDetails([singleOrder], config, orderElapsed, aamPool);
+        return (
+          <DailyDetailsDialog
+            open
+            onOpenChange={(o) => !o && setDetailOrderId(null)}
+            orders={[singleOrder]}
+            orderDailyDetails={singleResult.orderDailyDetails}
+            simulationDays={orderElapsed}
+          />
+        );
+      })()}
     </div>
   );
 }
