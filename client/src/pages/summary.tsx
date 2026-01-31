@@ -117,10 +117,10 @@ export default function SummaryPage() {
   }, [comparisonResults]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">收益分析</h1>
+          <h1 className="text-xl md:text-2xl font-bold">收益分析</h1>
           <p className="text-muted-foreground">
             总收益统计与期限对比
           </p>
@@ -226,7 +226,8 @@ export default function SummaryPage() {
                   <CardDescription>总收益的来源拆分（截至 Day {currentSimulationDay}）</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4 p-4 rounded-md bg-muted flex-wrap">
+                  {/* Desktop: horizontal flow */}
+                  <div className="hidden md:flex items-center gap-4 p-4 rounded-md bg-muted flex-wrap">
                     <div className="text-center">
                       <p className="text-lg font-bold">{formatCurrency(grandTotals.totalInvestment)}</p>
                       <p className="text-xs text-muted-foreground">总投入</p>
@@ -259,6 +260,39 @@ export default function SummaryPage() {
                         {grandTotals.netProfit >= 0 ? '+' : ''}{formatCurrency(grandTotals.netProfit)}
                       </p>
                       <p className="text-xs text-muted-foreground">净利润</p>
+                    </div>
+                  </div>
+                  {/* Mobile: grid layout */}
+                  <div className="md:hidden p-3 rounded-md bg-muted space-y-3">
+                    <div className="flex justify-between items-center p-2 rounded border">
+                      <span className="text-xs text-muted-foreground">总投入</span>
+                      <span className="text-sm font-bold">{formatCurrency(grandTotals.totalInvestment)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2 rounded border text-center">
+                        <p className="text-xs text-muted-foreground">AF卖出收益</p>
+                        <p className="text-sm font-bold text-blue-500">{formatCurrency(grandTotals.afSellingRevenue)}</p>
+                        <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.withdrawnAf)} AF</p>
+                      </div>
+                      <div className="p-2 rounded border text-center">
+                        <p className="text-xs text-muted-foreground">保留AF价值</p>
+                        <p className="text-sm font-bold text-purple-500">{formatCurrency(grandTotals.retainedAfValue)}</p>
+                        <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.retainedAf)} AF</p>
+                      </div>
+                      <div className="p-2 rounded border text-center">
+                        <p className="text-xs text-muted-foreground">外汇收益</p>
+                        <p className="text-sm font-bold text-green-500">{formatCurrency(grandTotals.forexIncome)}</p>
+                      </div>
+                      <div className="p-2 rounded border text-center">
+                        <p className="text-xs text-muted-foreground">手续费</p>
+                        <p className="text-sm font-bold text-red-500">{formatCurrency(grandTotals.withdrawFee)}</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center p-2 rounded border border-green-500/30">
+                      <span className="text-xs text-muted-foreground">净利润</span>
+                      <span className={`text-sm font-bold ${grandTotals.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {grandTotals.netProfit >= 0 ? '+' : ''}{formatCurrency(grandTotals.netProfit)}
+                      </span>
                     </div>
                   </div>
 
@@ -542,7 +576,7 @@ export default function SummaryPage() {
                   <CardDescription>各期限收益构成 (堆叠)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-80">
+                  <div className="h-60 md:h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />

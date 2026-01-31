@@ -166,10 +166,10 @@ export default function TradingPage() {
 
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">交易模拟</h1>
+          <h1 className="text-xl md:text-2xl font-bold">交易模拟</h1>
           <p className="text-muted-foreground">基于所有质押订单的交易收益模拟</p>
         </div>
         <div className="flex items-center gap-2">
@@ -242,7 +242,7 @@ export default function TradingPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>总交易本金</CardDescription>
-                  <CardTitle className="text-2xl">{formatCurrency(totals.daily.tradingCapital)}</CardTitle>
+                  <CardTitle className="text-lg md:text-2xl">{formatCurrency(totals.daily.tradingCapital)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
@@ -257,7 +257,7 @@ export default function TradingPage() {
                     <Users className="h-4 w-4" />
                     {simulationDays}天用户收益
                   </CardDescription>
-                  <CardTitle className="text-2xl text-green-500">{formatCurrency(totals.period.userProfit)}</CardTitle>
+                  <CardTitle className="text-lg md:text-2xl text-green-500">{formatCurrency(totals.period.userProfit)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
@@ -272,7 +272,7 @@ export default function TradingPage() {
                     <Building className="h-4 w-4" />
                     {simulationDays}天平台收益
                   </CardDescription>
-                  <CardTitle className="text-2xl">{formatCurrency(totals.period.platformProfit)}</CardTitle>
+                  <CardTitle className="text-lg md:text-2xl">{formatCurrency(totals.period.platformProfit)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
@@ -287,7 +287,7 @@ export default function TradingPage() {
                     <TrendingUp className="h-4 w-4" />
                     {simulationDays}天经纪人收益
                   </CardDescription>
-                  <CardTitle className="text-2xl">{formatCurrency(totals.period.brokerProfit)}</CardTitle>
+                  <CardTitle className="text-lg md:text-2xl">{formatCurrency(totals.period.brokerProfit)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
@@ -320,7 +320,7 @@ export default function TradingPage() {
                           订单 #{sim.orderId.slice(-6)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline">手续费 {sim.feeRate}%</Badge>
                         <Badge variant="outline">利润率 {sim.profitRate}%</Badge>
                         <Badge variant="outline">分润 {sim.profitSharePercent}%</Badge>
@@ -372,7 +372,8 @@ export default function TradingPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4 p-4 rounded-md bg-muted flex-wrap">
+                  {/* Desktop: horizontal flow */}
+                  <div className="hidden md:flex items-center gap-4 p-4 rounded-md bg-muted flex-wrap">
                     <div className="text-center">
                       <p className="text-2xl font-bold">{formatCurrency(totals.period.totalVolume)}</p>
                       <p className="text-xs text-muted-foreground">总交易量</p>
@@ -391,6 +392,25 @@ export default function TradingPage() {
                     <div className="text-center">
                       <p className="text-2xl font-bold text-green-500">{formatCurrency(totals.period.netProfit)}</p>
                       <p className="text-xs text-muted-foreground">净利润</p>
+                    </div>
+                  </div>
+                  {/* Mobile: vertical flow */}
+                  <div className="md:hidden p-3 rounded-md bg-muted space-y-2">
+                    <div className="flex justify-between items-center p-2 rounded border">
+                      <span className="text-xs text-muted-foreground">总交易量</span>
+                      <span className="text-sm font-bold">{formatCurrency(totals.period.totalVolume)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-2 rounded border">
+                      <span className="text-xs text-muted-foreground">毛利润</span>
+                      <span className="text-sm font-bold text-blue-500">+{formatCurrency(totals.period.grossProfit)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-2 rounded border">
+                      <span className="text-xs text-muted-foreground">手续费</span>
+                      <span className="text-sm font-bold text-red-500">-{formatCurrency(totals.period.tradingFee)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-2 rounded border border-green-500/30">
+                      <span className="text-xs text-muted-foreground">净利润</span>
+                      <span className="text-sm font-bold text-green-500">{formatCurrency(totals.period.netProfit)}</span>
                     </div>
                   </div>
 
@@ -428,7 +448,7 @@ export default function TradingPage() {
                 <CardDescription>{simulationDays}天扣除手续费后的利润分配</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[280px]">
+                <div className="h-[220px] md:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -465,7 +485,7 @@ export default function TradingPage() {
                 <CardDescription>交易资金的分配（不含回购）</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[280px]">
+                <div className="h-[220px] md:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -503,7 +523,7 @@ export default function TradingPage() {
               <CardDescription>{config.simulationMode === 'days' ? '不同天数档位的手续费率和利润率' : '不同配套档位的手续费率和利润率'}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[200px]">
+              <div className="h-[180px] md:h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={packageFeeData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

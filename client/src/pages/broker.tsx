@@ -152,11 +152,11 @@ export default function BrokerPage() {
   }));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">经纪人系统</h1>
+          <h1 className="text-xl md:text-2xl font-bold">经纪人系统</h1>
           <p className="text-muted-foreground">AF层级收益 + 交易利润分红（级差制度）</p>
         </div>
         <Badge variant="outline" className="text-lg px-4 py-2">{selectedLevel}</Badge>
@@ -259,7 +259,7 @@ export default function BrokerPage() {
               <Layers className="h-4 w-4" />
               层级AF收益
             </CardDescription>
-            <CardTitle className="text-2xl">{formatNumber(layerIncome.totalEarnings)} AF</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">{formatNumber(layerIncome.totalEarnings)} AF</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -273,7 +273,7 @@ export default function BrokerPage() {
               <DollarSign className="h-4 w-4" />
               交易分红
             </CardDescription>
-            <CardTitle className="text-2xl">{formatCurrency(dividendResult.earnings)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">{formatCurrency(dividendResult.earnings)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -287,7 +287,7 @@ export default function BrokerPage() {
               <Award className="h-4 w-4" />
               总收益
             </CardDescription>
-            <CardTitle className="text-2xl text-green-500">{formatCurrency(totalBrokerIncome)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl text-green-500">{formatCurrency(totalBrokerIncome)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -301,7 +301,7 @@ export default function BrokerPage() {
               <TrendingUp className="h-4 w-4" />
               AF 价格
             </CardDescription>
-            <CardTitle className="text-2xl">${aamPool.afPrice.toFixed(4)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">${aamPool.afPrice.toFixed(4)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -381,7 +381,7 @@ export default function BrokerPage() {
               <CardDescription>绿色=可获得收益，灰色=紧缩收益</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[220px] md:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={layerChartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -412,7 +412,7 @@ export default function BrokerPage() {
               <CardDescription>各等级可获得的层级AF收益</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border overflow-hidden">
+              <div className="rounded-md border overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -450,7 +450,8 @@ export default function BrokerPage() {
               <CardDescription>团队交易利润 → 扣除手续费 → 用户分成 → 经纪人分红池 / 平台</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-3 p-4 rounded-md bg-muted flex-wrap">
+              {/* Desktop: horizontal flow */}
+              <div className="hidden md:flex items-center gap-3 p-4 rounded-md bg-muted flex-wrap">
                 <div className="text-center">
                   <p className="text-xl font-bold">{formatCurrency(tradingMetrics.totalGross)}</p>
                   <p className="text-xs text-muted-foreground">毛利润</p>
@@ -475,6 +476,31 @@ export default function BrokerPage() {
                   <p className="text-xs text-muted-foreground">平台 (50%)</p>
                 </div>
               </div>
+              {/* Mobile: vertical flow */}
+              <div className="md:hidden p-3 rounded-md bg-muted space-y-2">
+                <div className="flex justify-between items-center p-2 rounded border">
+                  <span className="text-xs text-muted-foreground">毛利润</span>
+                  <span className="text-sm font-bold">{formatCurrency(tradingMetrics.totalGross)}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 rounded border">
+                  <span className="text-xs text-muted-foreground">手续费</span>
+                  <span className="text-sm font-bold text-red-500">-{formatCurrency(tradingMetrics.totalFee)}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 rounded border">
+                  <span className="text-xs text-muted-foreground">用户分成 ({tradingMetrics.profitSharePercent.toFixed(0)}%)</span>
+                  <span className="text-sm font-bold text-blue-500">-{formatCurrency(tradingMetrics.totalUserProfit)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 rounded border border-green-500/30 text-center">
+                    <p className="text-xs text-muted-foreground">经纪人分红池</p>
+                    <p className="text-sm font-bold text-green-500">{formatCurrency(tradingMetrics.brokerPool)}</p>
+                  </div>
+                  <div className="p-2 rounded border text-center">
+                    <p className="text-xs text-muted-foreground">平台</p>
+                    <p className="text-sm font-bold">{formatCurrency(tradingMetrics.platformShare)}</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -488,19 +514,19 @@ export default function BrokerPage() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="p-4 rounded-md border text-center">
-                  <p className="text-2xl font-bold">{dividendResult.brokerRate}%</p>
+                  <p className="text-lg md:text-2xl font-bold">{dividendResult.brokerRate}%</p>
                   <p className="text-xs text-muted-foreground">{selectedLevel} 分红比例</p>
                 </div>
                 <div className="p-4 rounded-md border text-center">
-                  <p className="text-2xl font-bold">{dividendResult.subRate}%</p>
+                  <p className="text-lg md:text-2xl font-bold">{dividendResult.subRate}%</p>
                   <p className="text-xs text-muted-foreground">{subordinateLevel === "none" ? "无下级" : subordinateLevel} 分红比例</p>
                 </div>
                 <div className="p-4 rounded-md border text-center">
-                  <p className="text-2xl font-bold text-green-500">{dividendResult.differentialRate}%</p>
+                  <p className="text-lg md:text-2xl font-bold text-green-500">{dividendResult.differentialRate}%</p>
                   <p className="text-xs text-muted-foreground">差额比例</p>
                 </div>
                 <div className="p-4 rounded-md border text-center">
-                  <p className="text-2xl font-bold text-green-500">{formatCurrency(dividendResult.earnings)}</p>
+                  <p className="text-lg md:text-2xl font-bold text-green-500">{formatCurrency(dividendResult.earnings)}</p>
                   <p className="text-xs text-muted-foreground">分红收益</p>
                 </div>
               </div>
@@ -516,7 +542,7 @@ export default function BrokerPage() {
               <CardDescription>假设每级的下级为前一级（V1无下级）</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border overflow-hidden">
+              <div className="rounded-md border overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -622,7 +648,7 @@ export default function BrokerPage() {
                       <Layers className="h-5 w-5 text-blue-500" />
                       <span className="font-medium">AF层级收益</span>
                     </div>
-                    <p className="text-2xl font-bold">{formatNumber(layerIncome.totalEarnings)} AF</p>
+                    <p className="text-lg md:text-2xl font-bold">{formatNumber(layerIncome.totalEarnings)} AF</p>
                     <p className="text-sm text-muted-foreground">≈ {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)}</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       可访问 {getMaxLayer(selectedLevel, config)} 层 / 20层
@@ -633,7 +659,7 @@ export default function BrokerPage() {
                       <DollarSign className="h-5 w-5 text-green-500" />
                       <span className="font-medium">交易分红</span>
                     </div>
-                    <p className="text-2xl font-bold">{formatCurrency(dividendResult.earnings)}</p>
+                    <p className="text-lg md:text-2xl font-bold">{formatCurrency(dividendResult.earnings)}</p>
                     <p className="text-sm text-muted-foreground">
                       级差 {dividendResult.differentialRate}%
                     </p>
@@ -646,7 +672,7 @@ export default function BrokerPage() {
                       <Award className="h-5 w-5 text-green-500" />
                       <span className="font-medium">日总收益</span>
                     </div>
-                    <p className="text-2xl font-bold text-green-500">{formatCurrency(totalBrokerIncome)}</p>
+                    <p className="text-lg md:text-2xl font-bold text-green-500">{formatCurrency(totalBrokerIncome)}</p>
                     <p className="text-sm text-muted-foreground">
                       AF价值 {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)} + 分红 {formatCurrency(dividendResult.earnings)}
                     </p>
@@ -654,7 +680,7 @@ export default function BrokerPage() {
                 </div>
 
                 {/* V1-V6 综合收益对比 */}
-                <div className="rounded-md border overflow-hidden">
+                <div className="rounded-md border overflow-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

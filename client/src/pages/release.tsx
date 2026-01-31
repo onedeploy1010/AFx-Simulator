@@ -129,13 +129,13 @@ export default function ReleasePage() {
   }, [filteredOrders, config, simulationDays, simulationResults, aamPool.afPrice]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">释放进度</h1>
+          <h1 className="text-xl md:text-2xl font-bold">释放进度</h1>
           <p className="text-muted-foreground">当前 Day {currentSimulationDay}，在质押模拟页面前进天数</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
             {stakingOrders.length} 笔质押订单
           </Badge>
@@ -143,7 +143,7 @@ export default function ReleasePage() {
             Day {currentSimulationDay}
           </Badge>
           <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
-            <SelectTrigger className="w-[200px]" data-testid="select-order-filter">
+            <SelectTrigger className="w-full md:w-[200px]" data-testid="select-order-filter">
               <SelectValue placeholder="选择订单" />
             </SelectTrigger>
             <SelectContent>
@@ -267,7 +267,7 @@ export default function ReleasePage() {
                 </Card>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
@@ -630,7 +630,7 @@ export default function ReleasePage() {
               <CardDescription>从第0天初始价格开始的币价变化</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[220px] md:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -671,7 +671,7 @@ export default function ReleasePage() {
                 <CardDescription>累计释放 AF 和累计拨出奖励 AF</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[220px] md:h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -712,7 +712,7 @@ export default function ReleasePage() {
                 <CardDescription>客户提现后卖入 LP 池的 AF 数量</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[220px] md:h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -747,7 +747,7 @@ export default function ReleasePage() {
                 <CardDescription>外汇交易收益 + 卖AF代币收益 = 客户总收益</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[220px] md:h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -800,7 +800,7 @@ export default function ReleasePage() {
                 <CardDescription>每日 AF 释放数量</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[220px] md:h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData.slice(1)}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -834,7 +834,7 @@ export default function ReleasePage() {
               <CardDescription>平台和经纪人累计利润</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[220px] md:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -881,7 +881,7 @@ export default function ReleasePage() {
                 <CardDescription>最近 10 天数据</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                   {simulationResults.slice(-10).map((result) => (
                     <div key={result.day} className="p-3 rounded-md border bg-card space-y-1">
                       <div className="flex items-center justify-between">
