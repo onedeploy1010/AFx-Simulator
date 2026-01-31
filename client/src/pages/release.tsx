@@ -44,8 +44,6 @@ export default function ReleasePage() {
       initialPrice: calculateInitialPrice(config),
       finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || 0,
       totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketAf, 0),
-      totalToTradingFee: simulationResults.reduce((sum, r) => sum + r.toTradingFeeAf, 0),
-      totalToTradingCapital: simulationResults.reduce((sum, r) => sum + r.toTradingCapitalUsdc, 0),
       totalLpUsdc: simulationResults.reduce((sum, r) => sum + r.lpContributionUsdc, 0),
       totalLpAfValue: simulationResults.reduce((sum, r) => sum + r.lpContributionAfValue, 0),
       totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
@@ -584,16 +582,6 @@ export default function ReleasePage() {
                     <p className="text-sm text-muted-foreground">销毁 AF</p>
                     <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} AF</p>
                     <p className="text-xs text-muted-foreground">{config.afExitBurnRatio}% 提现销毁比例</p>
-                  </div>
-                  <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">保留为手续费</p>
-                    <p className="text-lg font-semibold">{formatNumber(totals.totalToTradingFee)} AF</p>
-                    <p className="text-xs text-muted-foreground">保留在平台</p>
-                  </div>
-                  <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">转换交易金</p>
-                    <p className="text-lg font-semibold">{formatCurrency(totals.totalToTradingCapital)}</p>
-                    <p className="text-xs text-muted-foreground">{config.afToTradingCapitalRate}x 倍率</p>
                   </div>
                 </div>
               </CardContent>

@@ -34,6 +34,7 @@ export interface CLMMSimulationParams {
   priceUpper: number;      // Pb
   feeTier: number;         // 0.0005 | 0.003 | 0.01
   dailyVolume: number;     // daily trade volume (USDC)
+  dailyVolumes?: number[]; // per-day volume array (overrides dailyVolume)
   totalLiquidity: number;  // pool total liquidity (for fee share)
   days: number;
   priceTrajectory?: number[];
@@ -250,6 +251,7 @@ export function runCLMMSimulation(params: CLMMSimulationParams): CLMMDailyResult
     priceUpper: Pb,
     feeTier,
     dailyVolume,
+    dailyVolumes,
     totalLiquidity,
     days,
     priceTrajectory,
@@ -293,8 +295,9 @@ export function runCLMMSimulation(params: CLMMSimulationParams): CLMMDailyResult
     // Impermanent loss
     const il = calculateImpermanentLoss(hodlValue, positionValue);
 
-    // Fee earned today
-    const feesEarned = calculateFeeAccrual(L, totalLiquidity, dailyVolume, feeTier, inRange);
+    // Fee earned today (use per-day volume if available)
+    const vol = dailyVolumes?.[day - 1] ?? dailyVolume;
+    const feesEarned = calculateFeeAccrual(L, totalLiquidity, vol, feeTier, inRange);
     cumulativeFees += feesEarned;
 
     // Net PnL = cumulative fees - impermanent loss

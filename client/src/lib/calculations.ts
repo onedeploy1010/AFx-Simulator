@@ -104,43 +104,34 @@ export function calculateAfBasedTradingCapital(
 }
 
 // Calculate AF exit distribution based on per-order withdrawal ratio
-// withdrawPercent: 0 = all AF → trading capital, 100 = all AF → withdraw (burn + secondary market)
-// Inputs: afReleased (AF), afPrice (USDC/AF), withdrawPercent (0-100)
-// Outputs: AF units for withdraw/convert/burn, USDC for trading capital
+// withdrawPercent: 0 = all AF held (= trading capital), 100 = all AF withdrawn (burn + sell)
+// Held AF automatically becomes trading capital (held AF * price = trading capital value)
 export function calculateAFExitDistribution(
   afReleased: number,
-  afPrice: number,
+  _afPrice: number,
   withdrawPercent: number,
   config: AFxConfig
 ): {
   toWithdrawAf: number; // AF withdrawn (before burn)
-  toKeepAf: number; // AF kept as trading fee (always 0 in simplified model)
-  toConvertAf: number; // AF converted to trading capital
+  toHoldAf: number; // AF held in system = trading capital
   toBurnAf: number; // AF burned (from withdraw portion)
   toSecondaryMarketAf: number; // Net AF to secondary market after burn
-  toTradingCapitalUsdc: number; // USDC value of converted AF
 } {
   const wp = Math.max(0, Math.min(100, withdrawPercent));
 
-  // Two-way split: withdraw vs convert to trading capital
+  // Two-way split: withdraw vs hold
   const toWithdrawAf = afReleased * (wp / 100);
-  const toKeepAf = 0; // Simplified: no "keep as fee" category
-  const toConvertAf = afReleased * ((100 - wp) / 100);
+  const toHoldAf = afReleased * ((100 - wp) / 100);
 
   // From withdrawn portion, some gets burned (afExitBurnRatio, default 20%)
   const toBurnAf = toWithdrawAf * (config.afExitBurnRatio / 100);
   const toSecondaryMarketAf = toWithdrawAf - toBurnAf;
 
-  // Convert AF to USDC for trading capital using global trading capital multiplier
-  const toTradingCapitalUsdc = toConvertAf * afPrice * config.tradingCapitalMultiplier;
-
   return {
     toWithdrawAf,
-    toKeepAf,
-    toConvertAf,
+    toHoldAf,
     toBurnAf,
     toSecondaryMarketAf,
-    toTradingCapitalUsdc,
   };
 }
 
@@ -398,9 +389,7 @@ export function runSimulationWithDetails(
     let totalBrokerProfit = 0;
     let totalTradingFee = 0;
     let totalBurn = 0;
-    let totalToTradingCapital = 0;
     let totalToSecondaryMarket = 0;
-    let totalToTradingFeeFromExit = 0;
     let totalTradingVolume = 0;
     let totalLpContributionUsdc = 0;
     let totalLpContributionAf = 0;
@@ -452,13 +441,11 @@ export function runSimulationWithDetails(
         // Apply exit distribution using per-order withdrawal ratio
         const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, order.withdrawPercent ?? 60, config);
         totalBurn += exitDist.toBurnAf;
-        totalToTradingCapital += exitDist.toTradingCapitalUsdc;
         totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
-        totalToTradingFeeFromExit += exitDist.toKeepAf;
 
-        // Track AF state: only non-withdrawn portion stays in system
+        // Track AF state: withdrawn vs held (held AF = trading capital)
         state.afWithdrawn += exitDist.toWithdrawAf;
-        state.afKeptInSystem += exitDist.toConvertAf;
+        state.afKeptInSystem += exitDist.toHoldAf;
 
         // Calculate USDC revenue from selling withdrawn AF to LP pool
         totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
@@ -533,13 +520,11 @@ export function runSimulationWithDetails(
         // Calculate exit distribution using per-order withdrawal ratio
         const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, order.withdrawPercent ?? 60, config);
         totalBurn += exitDist.toBurnAf;
-        totalToTradingCapital += exitDist.toTradingCapitalUsdc;
         totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
-        totalToTradingFeeFromExit += exitDist.toKeepAf;
 
-        // Track AF state
+        // Track AF state: withdrawn vs held (held AF = trading capital)
         state.afWithdrawn += exitDist.toWithdrawAf;
-        state.afKeptInSystem += exitDist.toKeepAf + exitDist.toConvertAf;
+        state.afKeptInSystem += exitDist.toHoldAf;
 
         // Calculate USDC revenue from selling withdrawn AF to LP pool
         totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
@@ -615,8 +600,6 @@ export function runSimulationWithDetails(
       buybackAmountUsdc: totalBuybackUsdc,
       burnAmountAf: totalBurn,
       toSecondaryMarketAf: totalToSecondaryMarket,
-      toTradingFeeAf: totalToTradingFeeFromExit,
-      toTradingCapitalUsdc: totalToTradingCapital,
       afSellingRevenueUsdc: totalAfSellingRevenue,
       lpContributionUsdc: totalLpContributionUsdc,
       lpContributionAfValue: totalLpContributionAf,

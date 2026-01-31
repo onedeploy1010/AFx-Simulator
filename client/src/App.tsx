@@ -7,6 +7,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { Button } from "@/components/ui/button";
+import { RotateCcw } from "lucide-react";
+import { useConfigStore } from "@/hooks/use-config";
 import NotFound from "@/pages/not-found";
 import ConfigPage from "@/pages/config";
 import StakingPage from "@/pages/staking";
@@ -15,6 +18,7 @@ import TradingPage from "@/pages/trading";
 import AAMPage from "@/pages/aam";
 import BrokerPage from "@/pages/broker";
 import CLMMPage from "@/pages/clmm";
+import SummaryPage from "@/pages/summary";
 
 function Router() {
   return (
@@ -26,6 +30,7 @@ function Router() {
       <Route path="/aam" component={AAMPage} />
       <Route path="/broker" component={BrokerPage} />
       <Route path="/clmm" component={CLMMPage} />
+      <Route path="/summary" component={SummaryPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -50,7 +55,22 @@ function App() {
                     <SidebarTrigger data-testid="button-sidebar-toggle" />
                     <h1 className="text-sm font-medium text-muted-foreground hidden sm:block">AFx 经济模型计算器</h1>
                   </div>
-                  <ThemeToggle />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => {
+                        if (window.confirm("确定要重置所有数据吗？包括配置、订单、AAM池和模拟天数。")) {
+                          useConfigStore.getState().resetAll();
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      完全重置
+                    </Button>
+                    <ThemeToggle />
+                  </div>
                 </header>
                 <main className="flex-1 overflow-auto">
                   <Router />

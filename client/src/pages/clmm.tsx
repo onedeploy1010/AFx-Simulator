@@ -1,11 +1,8 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfigStore } from "@/hooks/use-config";
@@ -14,17 +11,18 @@ import {
   runCLMMSimulation,
   calculateLiquidity,
   calculateCapitalEfficiency,
-  type CLMMSimulationParams,
   type CLMMDailyResult,
 } from "@/lib/clmm-calculations";
 import {
   Target,
   TrendingUp,
+  TrendingDown,
   DollarSign,
   Activity,
   Zap,
   ArrowUpDown,
   BarChart3,
+  AlertCircle,
 } from "lucide-react";
 import {
   ComposedChart,
@@ -32,6 +30,8 @@ import {
   Line,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -47,8 +47,6 @@ const FEE_TIERS = [
   { label: "1%", value: "0.01" },
 ];
 
-const DAY_PRESETS = [7, 14, 30, 60, 90];
-
 const tooltipStyle = {
   backgroundColor: "hsl(var(--card))",
   borderColor: "hsl(var(--border))",
@@ -56,63 +54,115 @@ const tooltipStyle = {
 };
 
 export default function CLMMPage() {
-  // Inputs
-  const [depositX, setDepositX] = useState(10000);
-  const [depositY, setDepositY] = useState(1000);
-  const [priceLower, setPriceLower] = useState(0.08);
-  const [priceUpper, setPriceUpper] = useState(0.12);
+  // Only CLMM-specific user controls
   const [feeTier, setFeeTier] = useState("0.003");
-  const [dailyVolume, setDailyVolume] = useState(500000);
-  const [totalLiquidity, setTotalLiquidity] = useState(5000000);
+  const [rangeWidthPct, setRangeWidthPct] = useState(20);
   const [days, setDays] = useState(30);
-  const [manualPriceChangePct, setManualPriceChangePct] = useState(0);
-  const [useStakingPrices, setUseStakingPrices] = useState(false);
 
-  // Get staking simulation data for price trajectory
-  const { config, stakingOrders, aamPool } = useConfigStore();
+  // Core state from store
+  const { config, stakingOrders, aamPool, currentSimulationDay } = useConfigStore();
 
-  const initialPrice = useMemo(() => {
-    return aamPool.afPrice > 0 ? aamPool.afPrice : 0.1;
-  }, [aamPool.afPrice]);
+  // Effective simulation days
+  const effectiveDays = days || currentSimulationDay || 30;
 
-  // Build price trajectory from staking simulation
-  const stakingPriceTrajectory = useMemo(() => {
-    if (!useStakingPrices || stakingOrders.length === 0) return undefined;
-    const results = runStakingSimulation(stakingOrders, config, days, aamPool);
-    return results.map((r) => r.afPrice);
-  }, [useStakingPrices, stakingOrders, config, days, aamPool]);
+  // Run staking simulation to get buy/sell data
+  const stakingSimData = useMemo(() => {
+    if (stakingOrders.length === 0) return [];
+    return runStakingSimulation(stakingOrders, config, effectiveDays, aamPool);
+  }, [stakingOrders, config, effectiveDays, aamPool]);
+
+  // Derive all CLMM parameters from the FINAL staking simulation state
+  const derived = useMemo(() => {
+    const lastDay = stakingSimData[stakingSimData.length - 1];
+
+    // Use final simulation pool state (after all LP additions, buybacks, AF sells)
+    const poolUsdc = lastDay ? lastDay.poolUsdcBalance : aamPool.usdcBalance;
+    const poolAf = lastDay ? lastDay.poolAfBalance : aamPool.afBalance;
+    const price = lastDay ? lastDay.afPrice : (aamPool.afPrice > 0 ? aamPool.afPrice : 0.1);
+
+    const priceLower = price * (1 - rangeWidthPct / 100);
+    const priceUpper = price * (1 + rangeWidthPct / 100);
+    const depositX = poolAf * 0.1;
+    const depositY = poolUsdc * 0.1;
+    const totalLiquidity = lastDay ? lastDay.poolTotalValue : (poolUsdc + poolAf * price);
+
+    // Per-day volumes from simulation (sell + buy)
+    const dailyVolumes = stakingSimData.map(
+      (r) => (r.afSellingRevenueUsdc || 0) + (r.buybackAmountUsdc || 0)
+    );
+    const avgDailyVolume =
+      dailyVolumes.length > 0
+        ? dailyVolumes.reduce((s, v) => s + v, 0) / dailyVolumes.length
+        : 0;
+
+    // Per-day sell / buy
+    const dailySells = stakingSimData.map((r) => r.afSellingRevenueUsdc || 0);
+    const dailyBuys = stakingSimData.map((r) => r.buybackAmountUsdc || 0);
+    const avgDailySell =
+      dailySells.length > 0
+        ? dailySells.reduce((s, v) => s + v, 0) / dailySells.length
+        : 0;
+    const avgDailyBuy =
+      dailyBuys.length > 0
+        ? dailyBuys.reduce((s, v) => s + v, 0) / dailyBuys.length
+        : 0;
+    const netFlow = avgDailyBuy - avgDailySell;
+
+    // Price trajectory from simulation
+    const priceTrajectory = stakingSimData.map((r) => r.afPrice);
+
+    return {
+      price,
+      priceLower,
+      priceUpper,
+      depositX,
+      depositY,
+      totalLiquidity,
+      dailyVolumes,
+      avgDailyVolume,
+      dailySells,
+      dailyBuys,
+      avgDailySell,
+      avgDailyBuy,
+      netFlow,
+      priceTrajectory,
+    };
+  }, [aamPool, stakingSimData, rangeWidthPct]);
 
   // Run CLMM simulation
   const simulationResults = useMemo((): CLMMDailyResult[] => {
-    const params: CLMMSimulationParams = {
-      depositX,
-      depositY,
-      initialPrice,
-      priceLower,
-      priceUpper,
+    if (stakingOrders.length === 0) return [];
+    return runCLMMSimulation({
+      depositX: derived.depositX,
+      depositY: derived.depositY,
+      initialPrice: derived.price,
+      priceLower: derived.priceLower,
+      priceUpper: derived.priceUpper,
       feeTier: parseFloat(feeTier),
-      dailyVolume,
-      totalLiquidity,
-      days,
-      priceTrajectory: useStakingPrices ? stakingPriceTrajectory : undefined,
-      manualPriceChangePct: useStakingPrices ? undefined : manualPriceChangePct,
-    };
-    return runCLMMSimulation(params);
-  }, [
-    depositX, depositY, initialPrice, priceLower, priceUpper,
-    feeTier, dailyVolume, totalLiquidity, days,
-    useStakingPrices, stakingPriceTrajectory, manualPriceChangePct,
-  ]);
+      dailyVolume: derived.avgDailyVolume,
+      dailyVolumes: derived.dailyVolumes.length > 0 ? derived.dailyVolumes : undefined,
+      totalLiquidity: derived.totalLiquidity,
+      days: effectiveDays,
+      priceTrajectory: derived.priceTrajectory.length > 0 ? derived.priceTrajectory : undefined,
+    });
+  }, [derived, feeTier, effectiveDays, stakingOrders.length]);
 
   // Derived summary values
   const liquidity = useMemo(
-    () => calculateLiquidity(depositX, depositY, initialPrice, priceLower, priceUpper),
-    [depositX, depositY, initialPrice, priceLower, priceUpper]
+    () =>
+      calculateLiquidity(
+        derived.depositX,
+        derived.depositY,
+        derived.price,
+        derived.priceLower,
+        derived.priceUpper
+      ),
+    [derived]
   );
 
   const capitalEfficiency = useMemo(
-    () => calculateCapitalEfficiency(priceLower, priceUpper),
-    [priceLower, priceUpper]
+    () => calculateCapitalEfficiency(derived.priceLower, derived.priceUpper),
+    [derived.priceLower, derived.priceUpper]
   );
 
   const lastDay = simulationResults[simulationResults.length - 1];
@@ -123,7 +173,7 @@ export default function CLMMPage() {
   const finalPositionValue = lastDay?.positionValue ?? 0;
   const finalHodlValue = lastDay?.hodlValue ?? 0;
 
-  // Chart data
+  // Chart data for CLMM results
   const chartData = useMemo(() => {
     return simulationResults.map((r) => ({
       day: r.day,
@@ -139,11 +189,51 @@ export default function CLMMPage() {
     }));
   }, [simulationResults]);
 
+  // Buy/sell trend chart data
+  const buySellChartData = useMemo(() => {
+    return stakingSimData.map((r, i) => ({
+      day: r.day,
+      sell: r.afSellingRevenueUsdc || 0,
+      buy: r.buybackAmountUsdc || 0,
+      net: (r.buybackAmountUsdc || 0) - (r.afSellingRevenueUsdc || 0),
+    }));
+  }, [stakingSimData]);
+
   // Last 10 days for table
   const tableData = useMemo(() => {
     if (simulationResults.length <= 10) return simulationResults;
     return simulationResults.slice(-10);
   }, [simulationResults]);
+
+  // Empty state
+  if (stakingOrders.length === 0) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">CLMM 集中流动性模拟</h1>
+            <p className="text-muted-foreground">
+              Uniswap V3 风格集中流动性仓位模拟，自动从质押模拟派生参数
+            </p>
+          </div>
+          <Badge variant="outline" className="text-sm">
+            <Target className="h-3 w-3 mr-1" />
+            Concentrated Liquidity
+          </Badge>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
+            <AlertCircle className="h-12 w-12 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">暂无质押订单</h3>
+            <p className="text-muted-foreground text-center max-w-md">
+              CLMM 模拟参数自动从质押模拟的买盘/卖盘数据派生。
+              请先在「质押模拟」页面添加订单，然后返回此页面查看 CLMM 分析。
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -152,7 +242,7 @@ export default function CLMMPage() {
         <div>
           <h1 className="text-2xl font-bold">CLMM 集中流动性模拟</h1>
           <p className="text-muted-foreground">
-            Uniswap V3 风格集中流动性仓位模拟，对比全范围 AMM
+            Uniswap V3 风格集中流动性仓位模拟，自动从质押模拟派生参数
           </p>
         </div>
         <Badge variant="outline" className="text-sm">
@@ -161,60 +251,17 @@ export default function CLMMPage() {
         </Badge>
       </div>
 
-      {/* Input Controls */}
+      {/* Controls + Derived Parameters */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">仓位参数</CardTitle>
-          <CardDescription>设定存入量、价格区间与费率</CardDescription>
+          <CardTitle className="text-lg">CLMM 参数设定</CardTitle>
+          <CardDescription>
+            仅需设定手续费档位、区间宽度和模拟天数，其余参数自动从质押模拟派生
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* AF Deposit */}
-            <div className="space-y-2">
-              <Label htmlFor="depositX">AF 存入量</Label>
-              <Input
-                id="depositX"
-                type="number"
-                value={depositX}
-                onChange={(e) => setDepositX(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-
-            {/* USDC Deposit */}
-            <div className="space-y-2">
-              <Label htmlFor="depositY">USDC 存入量</Label>
-              <Input
-                id="depositY"
-                type="number"
-                value={depositY}
-                onChange={(e) => setDepositY(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-
-            {/* Price Lower */}
-            <div className="space-y-2">
-              <Label htmlFor="priceLower">价格下界 (Pa)</Label>
-              <Input
-                id="priceLower"
-                type="number"
-                step="0.001"
-                value={priceLower}
-                onChange={(e) => setPriceLower(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-
-            {/* Price Upper */}
-            <div className="space-y-2">
-              <Label htmlFor="priceUpper">价格上界 (Pb)</Label>
-              <Input
-                id="priceUpper"
-                type="number"
-                step="0.001"
-                value={priceUpper}
-                onChange={(e) => setPriceUpper(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-
+        <CardContent className="space-y-6">
+          {/* User controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Fee Tier */}
             <div className="space-y-2">
               <Label>手续费档位</Label>
@@ -232,107 +279,128 @@ export default function CLMMPage() {
               </Select>
             </div>
 
-            {/* Daily Volume */}
+            {/* Range Width */}
             <div className="space-y-2">
-              <Label htmlFor="dailyVolume">日交易量 (USDC)</Label>
-              <Input
-                id="dailyVolume"
-                type="number"
-                value={dailyVolume}
-                onChange={(e) => setDailyVolume(parseFloat(e.target.value) || 0)}
+              <Label>
+                区间宽度: ±{rangeWidthPct}%
+              </Label>
+              <Slider
+                value={[rangeWidthPct]}
+                onValueChange={([v]) => setRangeWidthPct(v)}
+                min={5}
+                max={50}
+                step={1}
               />
-            </div>
-
-            {/* Total Liquidity */}
-            <div className="space-y-2">
-              <Label htmlFor="totalLiquidity">池总流动性</Label>
-              <Input
-                id="totalLiquidity"
-                type="number"
-                value={totalLiquidity}
-                onChange={(e) => setTotalLiquidity(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-
-            {/* Initial Price (read-only from pool) */}
-            <div className="space-y-2">
-              <Label>初始价格 (来自 AAM 池)</Label>
-              <Input value={`$${initialPrice.toFixed(6)}`} readOnly className="bg-muted" />
-            </div>
-          </div>
-
-          {/* Simulation days slider */}
-          <div className="mt-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>模拟天数: {days} 天</Label>
-              <div className="flex gap-1">
-                {DAY_PRESETS.map((d) => (
-                  <Button
-                    key={d}
-                    variant={days === d ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setDays(d)}
-                  >
-                    {d}天
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <Slider
-              value={[days]}
-              onValueChange={([v]) => setDays(v)}
-              min={7}
-              max={365}
-              step={1}
-            />
-          </div>
-
-          {/* Price trajectory toggle */}
-          <div className="mt-4 flex items-center justify-between p-4 rounded-lg border">
-            <div className="space-y-0.5">
-              <Label>价格轨迹来源</Label>
               <p className="text-xs text-muted-foreground">
-                {useStakingPrices
-                  ? "使用质押订单模拟的价格轨迹"
-                  : "使用手动设定的日涨跌幅"
-                }
+                价格区间 [{derived.priceLower.toFixed(4)}, {derived.priceUpper.toFixed(4)}]
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">手动</span>
-              <Switch
-                checked={useStakingPrices}
-                onCheckedChange={setUseStakingPrices}
+
+            {/* Simulation Days */}
+            <div className="space-y-2">
+              <Label>模拟天数: {effectiveDays} 天</Label>
+              <Slider
+                value={[days]}
+                onValueChange={([v]) => setDays(v)}
+                min={7}
+                max={365}
+                step={1}
               />
-              <span className="text-sm text-muted-foreground">质押模拟</span>
             </div>
           </div>
 
-          {/* Manual price change slider (shown when not using staking prices) */}
-          {!useStakingPrices && (
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>日价格变化: {manualPriceChangePct > 0 ? "+" : ""}{manualPriceChangePct.toFixed(1)}%</Label>
-              </div>
-              <Slider
-                value={[manualPriceChangePct]}
-                onValueChange={([v]) => setManualPriceChangePct(v)}
-                min={-5}
-                max={5}
-                step={0.1}
-              />
+          {/* Derived parameters (read-only display) */}
+          <div className="border-t pt-4">
+            <Label className="text-sm text-muted-foreground mb-3 block">自动派生参数</Label>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">初始价格: ${derived.price.toFixed(4)}</Badge>
+              <Badge variant="secondary">
+                区间: ${derived.priceLower.toFixed(4)} — ${derived.priceUpper.toFixed(4)}
+              </Badge>
+              <Badge variant="secondary">
+                AF 存入: {formatNumber(derived.depositX, 0)}
+              </Badge>
+              <Badge variant="secondary">
+                USDC 存入: {formatCurrency(derived.depositY)}
+              </Badge>
+              <Badge variant="secondary">
+                池 TVL: {formatCurrency(derived.totalLiquidity)}
+              </Badge>
+              <Badge variant="secondary">
+                日均交易量: {formatCurrency(derived.avgDailyVolume)}
+              </Badge>
             </div>
-          )}
-
-          {useStakingPrices && stakingOrders.length === 0 && (
-            <p className="mt-2 text-sm text-orange-500">
-              暂无质押订单，请先在质押模拟页面添加订单
-            </p>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Summary Cards */}
+      {/* Buy/Sell Core Data Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-500" />
+              日均卖盘
+            </CardDescription>
+            <CardTitle className="text-xl text-red-500">
+              {formatCurrency(derived.avgDailySell)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">用户卖 AF (USDC)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-500" />
+              日均买盘
+            </CardDescription>
+            <CardTitle className="text-xl text-green-500">
+              {formatCurrency(derived.avgDailyBuy)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">平台回购 (USDC)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4" />
+              净流向
+            </CardDescription>
+            <CardTitle
+              className={`text-xl ${derived.netFlow >= 0 ? "text-green-500" : "text-red-500"}`}
+            >
+              {derived.netFlow >= 0 ? "+" : ""}
+              {formatCurrency(derived.netFlow)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">买盘 − 卖盘</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              日均池内交易量
+            </CardDescription>
+            <CardTitle className="text-xl">
+              {formatCurrency(derived.avgDailyVolume)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">卖盘 + 买盘</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* CLMM Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -389,7 +457,8 @@ export default function CLMMPage() {
           </CardHeader>
           <CardContent>
             <Badge variant={finalILPct > 0 ? "destructive" : "secondary"}>
-              {finalILPct > 0 ? "-" : ""}{formatNumber(Math.abs(finalILPct), 2)}%
+              {finalILPct > 0 ? "-" : ""}
+              {formatNumber(Math.abs(finalILPct), 2)}%
             </Badge>
           </CardContent>
         </Card>
@@ -412,12 +481,15 @@ export default function CLMMPage() {
               <Target className="h-4 w-4" />
               净损益
             </CardDescription>
-            <CardTitle className={`text-xl ${finalNetPnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-              {finalNetPnl >= 0 ? "+" : ""}{formatCurrency(finalNetPnl)}
+            <CardTitle
+              className={`text-xl ${finalNetPnl >= 0 ? "text-green-500" : "text-red-500"}`}
+            >
+              {finalNetPnl >= 0 ? "+" : ""}
+              {formatCurrency(finalNetPnl)}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">费用 - IL</p>
+            <p className="text-xs text-muted-foreground">费用 − IL</p>
           </CardContent>
         </Card>
       </div>
@@ -427,7 +499,8 @@ export default function CLMMPage() {
         <CardHeader>
           <CardTitle className="text-lg">价格轨迹与区间</CardTitle>
           <CardDescription>
-            蓝色区域为集中流动性区间 [{priceLower}, {priceUpper}]
+            蓝色区域为集中流动性区间 [{derived.priceLower.toFixed(4)},{" "}
+            {derived.priceUpper.toFixed(4)}]
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -456,18 +529,83 @@ export default function CLMMPage() {
                   labelFormatter={(label) => `Day ${label}`}
                 />
                 <ReferenceArea
-                  y1={priceLower}
-                  y2={priceUpper}
+                  y1={derived.priceLower}
+                  y2={derived.priceUpper}
                   fill="hsl(var(--primary) / 0.15)"
                   stroke="hsl(var(--primary) / 0.4)"
                   strokeDasharray="3 3"
-                  label={{ value: "LP 区间", position: "insideTopRight", fontSize: 11, fill: "hsl(var(--primary))" }}
+                  label={{
+                    value: "LP 区间",
+                    position: "insideTopRight",
+                    fontSize: 11,
+                    fill: "hsl(var(--primary))",
+                  }}
                 />
                 <Line
                   type="monotone"
                   dataKey="price"
                   name="price"
                   stroke="hsl(var(--chart-1))"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Chart: Buy/Sell Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">买卖盘走势</CardTitle>
+          <CardDescription>每日卖盘 (红) vs 买盘 (绿) 及净流向 (线)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={buySellChartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v) => `Day ${v}`}
+                  className="text-muted-foreground"
+                />
+                <YAxis
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v) => `$${formatNumber(v, 0)}`}
+                  className="text-muted-foreground"
+                />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value: number, name: string) => {
+                    const labels: Record<string, string> = {
+                      sell: "卖盘",
+                      buy: "买盘",
+                      net: "净流向",
+                    };
+                    return [formatCurrency(value), labels[name] || name];
+                  }}
+                  labelFormatter={(label) => `Day ${label}`}
+                />
+                <Legend
+                  formatter={(value: string) => {
+                    const labels: Record<string, string> = {
+                      sell: "卖盘",
+                      buy: "买盘",
+                      net: "净流向",
+                    };
+                    return labels[value] || value;
+                  }}
+                />
+                <Bar dataKey="sell" name="sell" fill="#ef4444" opacity={0.8} />
+                <Bar dataKey="buy" name="buy" fill="#22c55e" opacity={0.8} />
+                <Line
+                  type="monotone"
+                  dataKey="net"
+                  name="net"
+                  stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   dot={false}
                 />
@@ -675,7 +813,9 @@ export default function CLMMPage() {
       {/* Daily Detail Table (last 10 days) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">每日明细 (最后 {Math.min(10, simulationResults.length)} 天)</CardTitle>
+          <CardTitle className="text-lg">
+            每日明细 (最后 {Math.min(10, simulationResults.length)} 天)
+          </CardTitle>
           <CardDescription>逐日价格、仓位、费用与损益</CardDescription>
         </CardHeader>
         <CardContent>
@@ -701,7 +841,10 @@ export default function CLMMPage() {
                     <TableCell className="font-medium">{r.day}</TableCell>
                     <TableCell>${r.price.toFixed(4)}</TableCell>
                     <TableCell>
-                      <Badge variant={r.inRange ? "default" : "secondary"} className="text-xs">
+                      <Badge
+                        variant={r.inRange ? "default" : "secondary"}
+                        className="text-xs"
+                      >
                         {r.inRange ? "Yes" : "No"}
                       </Badge>
                     </TableCell>
@@ -715,8 +858,11 @@ export default function CLMMPage() {
                     <TableCell className="text-green-500">
                       {formatCurrency(r.cumulativeFees)}
                     </TableCell>
-                    <TableCell className={r.netPnl >= 0 ? "text-green-500" : "text-red-500"}>
-                      {r.netPnl >= 0 ? "+" : ""}{formatCurrency(r.netPnl)}
+                    <TableCell
+                      className={r.netPnl >= 0 ? "text-green-500" : "text-red-500"}
+                    >
+                      {r.netPnl >= 0 ? "+" : ""}
+                      {formatCurrency(r.netPnl)}
                     </TableCell>
                   </TableRow>
                 ))}

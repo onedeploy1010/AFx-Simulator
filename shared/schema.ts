@@ -83,9 +83,6 @@ export const afxConfigSchema = z.object({
   // Daily trading volume percent (how much of trading capital is traded daily)
   dailyTradingVolumePercent: z.number().min(0).max(100),
   
-  // AF to trading capital conversion rate (multiplier when converting AF to trading capital)
-  afToTradingCapitalRate: z.number().min(0),
-  
   // Burn ratio for withdrawn AF (% of withdrawn AF that gets burned)
   afExitBurnRatio: z.number().min(0).max(100),
   
@@ -152,8 +149,6 @@ export const dailySimulationSchema = z.object({
   burnAmountAf: z.number(), // Burn amount in AF
   // Exit distribution tracking
   toSecondaryMarketAf: z.number(), // AF sold to secondary market
-  toTradingFeeAf: z.number(), // AF kept as trading fee
-  toTradingCapitalUsdc: z.number(), // Converted to trading capital
   // AF selling revenue (USDC received from selling withdrawn AF to LP pool)
   afSellingRevenueUsdc: z.number(),
   // Fund flow tracking (from trading capital)
@@ -264,7 +259,6 @@ export const defaultConfig: AFxConfig = {
   depositBuybackRatio: 20, // 20% of deposits to buyback
   // Remaining 50% goes to trading reserve
   dailyTradingVolumePercent: 10, // 10% of trading capital traded daily
-  afToTradingCapitalRate: 1.5,
   afExitBurnRatio: 20, // 20% of withdrawn AF gets burned
   lpPoolUsdcRatio: 30,
   lpPoolAfRatio: 30,

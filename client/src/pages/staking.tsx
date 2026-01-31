@@ -331,7 +331,7 @@ export default function StakingPage() {
               <div className="flex gap-3 text-xs">
                 <span className="text-red-500">提现 {withdrawPercent}%</span>
                 <span className="text-muted-foreground">|</span>
-                <span className="text-green-500">转交易金 {100 - withdrawPercent}%</span>
+                <span className="text-green-500">持有 {100 - withdrawPercent}%</span>
               </div>
             </div>
             <Slider
@@ -342,7 +342,7 @@ export default function StakingPage() {
               step={5}
             />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>0% — 全部转交易金</span>
+              <span>0% — 全部持有(=交易金)</span>
               <span>100% — 全部提现</span>
             </div>
             {/* AF flow preview */}
@@ -352,26 +352,14 @@ export default function StakingPage() {
               return (
                 <div className="p-3 rounded-md bg-muted/50 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">每 100 AF 释放流向：</p>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="p-2 rounded border text-center">
                       <p className="text-muted-foreground">提现</p>
                       <p className="font-bold text-red-500">{formatNumber(sample.toWithdrawAf)} AF</p>
                     </div>
                     <div className="p-2 rounded border text-center">
-                      <p className="text-muted-foreground">销毁 ({config.afExitBurnRatio}%)</p>
-                      <p className="font-bold text-orange-500">{formatNumber(sample.toBurnAf)} AF</p>
-                    </div>
-                    <div className="p-2 rounded border text-center">
-                      <p className="text-muted-foreground">卖盘 (AAM/CLMM)</p>
-                      <p className="font-bold text-blue-500">{formatNumber(sample.toSecondaryMarketAf)} AF</p>
-                    </div>
-                    <div className="p-2 rounded border text-center">
-                      <p className="text-muted-foreground">转交易金 AF</p>
-                      <p className="font-bold text-green-500">{formatNumber(sample.toConvertAf)} AF</p>
-                    </div>
-                    <div className="p-2 rounded border text-center">
-                      <p className="text-muted-foreground">交易金 USDC</p>
-                      <p className="font-bold text-green-500">{formatCurrency(sample.toTradingCapitalUsdc)}</p>
+                      <p className="text-muted-foreground">持有(=交易金)</p>
+                      <p className="font-bold text-green-500">{formatNumber(sample.toHoldAf)} AF</p>
                     </div>
                   </div>
                 </div>
@@ -445,22 +433,14 @@ export default function StakingPage() {
                           <span className="font-medium">{formatNumber(dailyRelease)} AF</span>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs border-t pt-2">
+                      <div className="grid grid-cols-2 gap-2 text-xs border-t pt-2">
                         <div>
-                          <span className="text-muted-foreground">日销毁: </span>
-                          <span className="font-medium text-orange-500">{formatNumber(dailyExit.toBurnAf, 4)} AF</span>
+                          <span className="text-muted-foreground">日提现: </span>
+                          <span className="font-medium text-red-500">{formatNumber(dailyExit.toWithdrawAf, 4)} AF</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">日卖盘: </span>
-                          <span className="font-medium text-blue-500">{formatNumber(dailyExit.toSecondaryMarketAf, 4)} AF</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">日转交易金: </span>
-                          <span className="font-medium text-green-500">{formatNumber(dailyExit.toConvertAf, 4)} AF</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">交易金: </span>
-                          <span className="font-medium text-green-500">{formatCurrency(dailyExit.toTradingCapitalUsdc)}</span>
+                          <span className="text-muted-foreground">日持有: </span>
+                          <span className="font-medium text-green-500">{formatNumber(dailyExit.toHoldAf, 4)} AF</span>
                         </div>
                       </div>
                     </div>
@@ -619,26 +599,14 @@ export default function StakingPage() {
                     </div>
 
                     {/* AF flow breakdown */}
-                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2 p-3 rounded-md bg-muted/50 text-xs">
+                    <div className="grid grid-cols-2 gap-2 p-3 rounded-md bg-muted/50 text-xs">
                       <div className="text-center">
-                        <p className="text-muted-foreground">日销毁</p>
-                        <p className="font-bold text-orange-500">{formatNumber(exitDist.toBurnAf, 4)} AF</p>
+                        <p className="text-muted-foreground">日提现</p>
+                        <p className="font-bold text-red-500">{formatNumber(exitDist.toWithdrawAf, 4)} AF</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-muted-foreground">日卖盘 (AAM/CLMM)</p>
-                        <p className="font-bold text-blue-500">{formatNumber(exitDist.toSecondaryMarketAf, 4)} AF</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">日转交易金</p>
-                        <p className="font-bold text-green-500">{formatNumber(exitDist.toConvertAf, 4)} AF</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">交易金 (USDC)</p>
-                        <p className="font-bold text-green-500">{formatCurrency(exitDist.toTradingCapitalUsdc)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">日卖盘价值</p>
-                        <p className="font-bold text-blue-500">{formatCurrency(exitDist.toSecondaryMarketAf * aamPool.afPrice)}</p>
+                        <p className="text-muted-foreground">日持有(=交易金)</p>
+                        <p className="font-bold text-green-500">{formatNumber(exitDist.toHoldAf, 4)} AF</p>
                       </div>
                     </div>
                   </div>

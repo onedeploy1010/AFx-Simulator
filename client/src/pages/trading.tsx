@@ -4,7 +4,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfigStore } from "@/hooks/use-config";
 import { calculateTradingSimulation, formatNumber, formatCurrency, formatPercent, calculateOrderTradingCapital, calculateOrderDailyVolume, calculateOrderDailyForexProfit, runSimulationWithDetails } from "@/lib/calculations";
 import { Calculator, TrendingUp, Users, Building, Coins, ArrowRight, Package, RefreshCw, FileText } from "lucide-react";
@@ -161,23 +160,6 @@ export default function TradingPage() {
         profitShare: pkg.profitSharePercent,
       }));
 
-  const dailyForexTableData = useMemo(() => {
-    if (!totals) return [];
-    const rows = [];
-    let cumForexProfit = 0;
-    for (let day = 1; day <= simulationDays; day++) {
-      cumForexProfit += totals.daily.userProfit;
-      rows.push({
-        day,
-        tradingCapital: totals.daily.tradingCapital,
-        dailyVolume: totals.daily.dailyVolume,
-        dailyForexProfit: totals.daily.userProfit,
-        cumForexProfit,
-        tradingFee: totals.daily.tradingFee,
-      });
-    }
-    return rows;
-  }, [totals, simulationDays]);
 
   return (
     <div className="p-6 space-y-6">
@@ -377,52 +359,6 @@ export default function TradingPage() {
             </CardContent>
           </Card>
 
-          {dailyForexTableData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">每日外汇收益列表</CardTitle>
-                <CardDescription>逐日交易收益明细（共 {simulationDays} 天）</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="max-h-[500px] overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[60px]">Day</TableHead>
-                        <TableHead className="text-right">交易本金</TableHead>
-                        <TableHead className="text-right">日交易量</TableHead>
-                        <TableHead className="text-right">日外汇收益</TableHead>
-                        <TableHead className="text-right">累计外汇收益</TableHead>
-                        <TableHead className="text-right">手续费</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dailyForexTableData.map((row) => (
-                        <TableRow key={row.day}>
-                          <TableCell className="font-medium">{row.day}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(row.tradingCapital)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(row.dailyVolume)}</TableCell>
-                          <TableCell className="text-right text-green-500">{formatCurrency(row.dailyForexProfit)}</TableCell>
-                          <TableCell className="text-right font-medium text-green-500">{formatCurrency(row.cumForexProfit)}</TableCell>
-                          <TableCell className="text-right text-red-500">{formatCurrency(row.tradingFee)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell className="font-bold">合计</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(totals!.period.totalVolume)}</TableCell>
-                        <TableCell className="text-right font-bold text-green-500">{formatCurrency(totals!.period.userProfit)}</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right font-bold text-red-500">{formatCurrency(totals!.period.tradingFee)}</TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {totals && (
             <Card>
