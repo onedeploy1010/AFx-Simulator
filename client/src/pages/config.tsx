@@ -165,8 +165,75 @@ export default function ConfigPage() {
                     step={1}
                     data-testid="slider-release-starts-trading"
                   />
-                  <p className="text-xs text-muted-foreground">质押后第 N 天开始可交易</p>
+                  <p className="text-xs text-muted-foreground">铸造后第 N 天开始可交易</p>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">交易计算模式</CardTitle>
+                <CardDescription>选择交易收益的计算方式</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Select
+                  value={config.tradingMode ?? 'individual'}
+                  onValueChange={(value: 'individual' | 'dividend_pool') =>
+                    setConfig({ tradingMode: value })
+                  }
+                >
+                  <SelectTrigger data-testid="select-trading-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">个人交易模式</SelectItem>
+                    <SelectItem value="dividend_pool">交易分红模式</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="p-3 rounded-md bg-muted">
+                  <p className="text-sm text-muted-foreground">
+                    {(config.tradingMode ?? 'individual') === 'individual'
+                      ? "个人交易模式：每个订单独立计算交易收益"
+                      : "交易分红模式：全网入金进入量化交易池，按AF持有权重分润"}
+                  </p>
+                </div>
+                {(config.tradingMode ?? 'individual') === 'dividend_pool' && (
+                  <div className="space-y-4 p-4 rounded-lg border border-dashed">
+                    <div className="space-y-2">
+                      <Label>保证金倍数: {config.dividendMarginMultiplier ?? 3}x</Label>
+                      <Slider
+                        value={[config.dividendMarginMultiplier ?? 3]}
+                        onValueChange={([value]) => setConfig({ dividendMarginMultiplier: value })}
+                        min={1}
+                        max={10}
+                        step={0.5}
+                        data-testid="slider-margin-multiplier"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>入金交易池比例: {config.depositTradingPoolRatio ?? 50}%</Label>
+                      <Slider
+                        value={[config.depositTradingPoolRatio ?? 50]}
+                        onValueChange={([value]) => setConfig({ depositTradingPoolRatio: value })}
+                        min={0}
+                        max={100}
+                        step={5}
+                        data-testid="slider-pool-ratio"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>交易池日利润率: {config.poolDailyProfitRate ?? 10}%</Label>
+                      <Slider
+                        value={[config.poolDailyProfitRate ?? 10]}
+                        onValueChange={([value]) => setConfig({ poolDailyProfitRate: value })}
+                        min={0}
+                        max={50}
+                        step={1}
+                        data-testid="slider-pool-profit-rate"
+                      />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -279,7 +346,7 @@ export default function ConfigPage() {
                     step={0.5}
                     data-testid="slider-trading-multiplier"
                   />
-                  <p className="text-xs text-muted-foreground">交易金 = 质押金额 × 倍数（全局统一设置）</p>
+                  <p className="text-xs text-muted-foreground">交易金 = 铸造金额 × 倍数（全局统一设置）</p>
                 </div>
                 <div className="space-y-2">
                   <Label>日交易量 (%): {config.dailyTradingVolumePercent}%</Label>
@@ -347,7 +414,7 @@ export default function ConfigPage() {
                     </div>
                     {config.stakingEnabled && (
                       <div className="space-y-2">
-                        <Label>质押周期 (天)</Label>
+                        <Label>铸造周期 (天)</Label>
                         <Input
                           type="number"
                           value={pkg.stakingPeriodDays}
@@ -468,6 +535,30 @@ export default function ConfigPage() {
           </div>
           ) : (
           <div className="grid grid-cols-1 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">倍数封顶模式</CardTitle>
+                <CardDescription>天数模式下释放AF达到本金×倍数时停止</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="multiplier-cap-enabled">启用倍数封顶</Label>
+                  <Switch
+                    id="multiplier-cap-enabled"
+                    checked={config.multiplierCapEnabled ?? true}
+                    onCheckedChange={(checked) => setConfig({ multiplierCapEnabled: checked })}
+                    data-testid="switch-multiplier-cap"
+                  />
+                </div>
+                {(config.multiplierCapEnabled ?? true) && (
+                  <div className="p-3 rounded-md bg-muted">
+                    <p className="text-sm text-muted-foreground">
+                      当释放AF价值达到本金×倍数时停止释放。封顶后若用户未提取AF，继续产生交易收益。
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             {DAYS_MODE_TIERS.map((days) => {
               const dc = config.daysConfigs.find((d) => d.days === days);
               if (!dc) return null;

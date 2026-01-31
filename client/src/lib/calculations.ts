@@ -94,6 +94,75 @@ export function calculateDaysModeDailyRelease(
   return { dailyAf, totalAfToRelease };
 }
 
+// Check if multiplier cap has been reached (days mode)
+export function isMultiplierCapReached(
+  cumAfReleased: number,
+  afPrice: number,
+  principal: number,
+  releaseMultiplier: number
+): boolean {
+  return cumAfReleased * afPrice >= principal * releaseMultiplier;
+}
+
+// Calculate dividend pool profit for a single order
+export function calculateDividendPoolProfit(
+  personalUnclaimedAf: number,
+  totalUnclaimedAf: number,
+  totalAfReleased: number,
+  totalAfxMultiplier: number,
+  principal: number,
+  totalDepositAmount: number,
+  config: AFxConfig,
+  daysConfig: { tradingFeeRate: number; profitSharePercent: number }
+): {
+  margin: number;
+  weight: number;
+  poolCapital: number;
+  dailyPoolProfit: number;
+  personalShare: number;
+  userProfit: number;
+  platformProfit: number;
+  brokerProfit: number;
+  tradingFee: number;
+} {
+  // Margin = (personalUnclaimedAf / totalAfxMultiplier) × principal × marginMultiplier
+  const margin = totalAfxMultiplier > 0
+    ? (personalUnclaimedAf / totalAfxMultiplier) * principal * config.dividendMarginMultiplier
+    : 0;
+
+  // Weight = personalUnclaimedAf / totalUnclaimedAf
+  const weight = totalUnclaimedAf > 0 ? personalUnclaimedAf / totalUnclaimedAf : 0;
+
+  // Trading pool capital = totalDepositAmount × (depositTradingPoolRatio / 100)
+  const poolCapital = totalDepositAmount * (config.depositTradingPoolRatio / 100);
+
+  // Daily pool profit = poolCapital × (poolDailyProfitRate / 100)
+  const dailyPoolProfit = poolCapital * (config.poolDailyProfitRate / 100);
+
+  // Personal share = dailyPoolProfit × weight
+  const personalShare = dailyPoolProfit * weight;
+
+  // Apply fee and profit sharing (same as individual mode)
+  const tradingFee = personalShare * (daysConfig.tradingFeeRate / 100);
+  const netProfit = Math.max(0, personalShare - tradingFee);
+  const userProfit = netProfit * (daysConfig.profitSharePercent / 100);
+  const remainingProfit = netProfit - userProfit;
+  const platformProfit = remainingProfit * 0.5;
+  const brokerProfit = remainingProfit * 0.5;
+
+  return {
+    margin,
+    weight,
+    poolCapital,
+    dailyPoolProfit,
+    personalShare,
+    userProfit,
+    platformProfit,
+    brokerProfit,
+    tradingFee,
+  };
+}
+
 // Calculate AF-based trading capital
 // Trading capital = un-withdrawn AF value in USDC (afKeptInSystem * afPrice)
 export function calculateAfBasedTradingCapital(
@@ -420,21 +489,66 @@ export function runSimulationWithDetails(
         if (!daysConfig) continue;
 
         const durationDays = order.durationDays || daysConfig.days;
-        // Check if release period has passed
-        if (effectiveDay > durationDays) {
+        const capValue = order.amount * daysConfig.releaseMultiplier;
+
+        // Check if multiplier cap already reached
+        const alreadyCapped = config.multiplierCapEnabled &&
+          isMultiplierCapReached(state.cumAfReleased, currentPool.afPrice, order.amount, daysConfig.releaseMultiplier);
+
+        // Check if release period has passed OR already capped
+        if (effectiveDay > durationDays || alreadyCapped) {
+          // Even after cap/completion, if AF kept in system, continue trading income
+          const tradingCapital = calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice);
+          const canTrade = effectiveDay > config.releaseStartsTradingDays;
+          let forexIncome = 0;
+
+          if (canTrade && tradingCapital > 0 && config.tradingMode === 'individual') {
+            const dailyTradingVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
+            totalTradingVolume += dailyTradingVolume;
+
+            const tradingSim = calculateTradingSimulation(
+              dailyTradingVolume,
+              daysConfig.tradingProfitRate / 100,
+              daysConfig.tradingFeeRate,
+              daysConfig.profitSharePercent,
+              config
+            );
+
+            forexIncome = tradingSim.userProfit;
+            totalUserProfit += tradingSim.userProfit;
+            totalPlatformProfit += tradingSim.platformProfit;
+            totalBrokerProfit += tradingSim.brokerProfit;
+            totalTradingFee += tradingSim.tradingFee;
+            totalBuybackUsdc += tradingSim.buybackAmount;
+            totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
+            totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+          }
+
           orderDailyDetails.get(order.id)?.push({
             day, orderId: order.id,
             principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
             afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
             afInSystem: state.afKeptInSystem,
-            tradingCapital: calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice),
-            forexIncome: 0, withdrawnAf: 0, withdrawFee: 0,
+            tradingCapital,
+            forexIncome, withdrawnAf: 0, withdrawFee: 0,
           });
           continue;
         }
 
         // Calculate daily AF release for days mode
-        const { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, currentPool.afPrice);
+        let { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, currentPool.afPrice);
+
+        // Apply multiplier cap: truncate if this release would exceed cap
+        if (config.multiplierCapEnabled) {
+          const currentValue = state.cumAfReleased * currentPool.afPrice;
+          const afterValue = (state.cumAfReleased + dailyAf) * currentPool.afPrice;
+          if (afterValue >= capValue) {
+            // Truncate: release only enough to reach cap exactly
+            const remainingValue = Math.max(0, capValue - currentValue);
+            dailyAf = currentPool.afPrice > 0 ? remainingValue / currentPool.afPrice : 0;
+          }
+        }
+
         totalAfReleased += dailyAf;
         state.cumAfReleased += dailyAf;
 
@@ -453,10 +567,10 @@ export function runSimulationWithDetails(
         // Trading capital from un-withdrawn AF
         const tradingCapital = calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice);
 
-        // If AF kept (not withdrawn), generate trading income
+        // If AF kept (not withdrawn), generate trading income (individual mode only here; dividend_pool handled in second pass)
         const canTrade = effectiveDay > config.releaseStartsTradingDays;
         let forexIncome = 0;
-        if (canTrade && tradingCapital > 0) {
+        if (canTrade && tradingCapital > 0 && config.tradingMode === 'individual') {
           const dailyTradingVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
           totalTradingVolume += dailyTradingVolume;
 
@@ -567,6 +681,60 @@ export function runSimulationWithDetails(
           withdrawnAf: exitDist.toWithdrawAf,
           withdrawFee: 0,
         });
+      }
+    }
+
+    // Dividend pool mode: second pass to distribute pool profits by AF weight
+    if (config.tradingMode === 'dividend_pool') {
+      // Gather total unclaimed AF and total deposit across all days-mode orders
+      let totalUnclaimedAf = 0;
+      const totalDepositAmount = orders.reduce((sum, o) => sum + o.amount, 0);
+
+      for (const order of orders) {
+        if ((order.mode || 'package') === 'days') {
+          const st = orderState.get(order.id)!;
+          totalUnclaimedAf += st.afKeptInSystem;
+        }
+      }
+
+      if (totalUnclaimedAf > 0) {
+        for (const order of orders) {
+          if ((order.mode || 'package') !== 'days') continue;
+          const st = orderState.get(order.id)!;
+          if (st.afKeptInSystem <= 0) continue;
+
+          const startDay = order.startDay || 0;
+          const effectiveDay = day - startDay;
+          if (effectiveDay < 1 || effectiveDay <= config.releaseStartsTradingDays) continue;
+
+          const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
+          if (!daysConfig) continue;
+
+          const dividendResult = calculateDividendPoolProfit(
+            st.afKeptInSystem,
+            totalUnclaimedAf,
+            st.cumAfReleased,
+            daysConfig.releaseMultiplier,
+            order.amount,
+            totalDepositAmount,
+            config,
+            { tradingFeeRate: daysConfig.tradingFeeRate, profitSharePercent: daysConfig.profitSharePercent }
+          );
+
+          totalUserProfit += dividendResult.userProfit;
+          totalPlatformProfit += dividendResult.platformProfit;
+          totalBrokerProfit += dividendResult.brokerProfit;
+          totalTradingFee += dividendResult.tradingFee;
+
+          // Update the order's daily detail with dividend income
+          const details = orderDailyDetails.get(order.id);
+          if (details && details.length > 0) {
+            const lastDetail = details[details.length - 1];
+            if (lastDetail.day === day) {
+              lastDetail.forexIncome += dividendResult.userProfit;
+            }
+          }
+        }
       }
     }
 

@@ -128,8 +128,13 @@ export default function SummaryPage() {
         <div className="flex items-center gap-2">
           <Badge variant="outline">AF ${formatNumber(currentAfPrice, 4)}</Badge>
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
-            {stakingOrders.length} 笔质押订单
+            {stakingOrders.length} 笔铸造订单
           </Badge>
+          {(config.tradingMode ?? 'individual') === 'dividend_pool' && (
+            <Badge variant="outline" className="border-purple-500 text-purple-500">
+              分红模式
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -149,8 +154,8 @@ export default function SummaryPage() {
               <CardContent className="py-12">
                 <div className="text-center text-muted-foreground">
                   <Coins className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>暂无质押订单</p>
-                  <p className="text-sm">请先在质押模拟页面添加订单</p>
+                  <p>暂无铸造订单</p>
+                  <p className="text-sm">请先在铸造模拟页面添加订单</p>
                 </div>
               </CardContent>
             </Card>
@@ -169,7 +174,7 @@ export default function SummaryPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-muted-foreground">{stakingOrders.length} 笔订单质押合计</p>
+                    <p className="text-xs text-muted-foreground">{stakingOrders.length} 笔订单铸造合计</p>
                   </CardContent>
                 </Card>
 
@@ -436,12 +441,12 @@ export default function SummaryPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">输入参数</CardTitle>
-              <CardDescription>设置质押金额与AF提现比例，自动对比 30/60/90/180 天收益</CardDescription>
+              <CardDescription>设置铸造金额与AF提现比例，自动对比 30/60/90/180 天收益</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="compare-amount">质押金额 (USDC)</Label>
+                  <Label htmlFor="compare-amount">铸造金额 (USDC)</Label>
                   <Input
                     id="compare-amount"
                     type="number"
@@ -519,7 +524,7 @@ export default function SummaryPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">对比明细</CardTitle>
-                  <CardDescription>质押 {formatCurrency(compareAmount)} / 提现 {compareWithdrawPct}% 下各期限对比</CardDescription>
+                  <CardDescription>铸造 {formatCurrency(compareAmount)} / 提现 {compareWithdrawPct}% 下各期限对比</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-auto">

@@ -31,6 +31,12 @@ const mergeWithDefaults = (savedConfig: Partial<AFxConfig>): AFxConfig => {
       ...defaultDaysConfigs[i],
       ...dc,
     })) ?? defaultDaysConfigs,
+    // Multiplier cap and trading mode new fields
+    multiplierCapEnabled: savedConfig.multiplierCapEnabled ?? defaultConfig.multiplierCapEnabled,
+    tradingMode: savedConfig.tradingMode ?? defaultConfig.tradingMode,
+    dividendMarginMultiplier: savedConfig.dividendMarginMultiplier ?? defaultConfig.dividendMarginMultiplier,
+    depositTradingPoolRatio: savedConfig.depositTradingPoolRatio ?? defaultConfig.depositTradingPoolRatio,
+    poolDailyProfitRate: savedConfig.poolDailyProfitRate ?? defaultConfig.poolDailyProfitRate,
     // Broker system new fields
     brokerLayerRates: savedConfig.brokerLayerRates ?? defaultConfig.brokerLayerRates,
     brokerLevelAccess: savedConfig.brokerLevelAccess ?? defaultConfig.brokerLevelAccess,

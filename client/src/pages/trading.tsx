@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/hooks/use-config";
-import { calculateTradingSimulation, formatNumber, formatCurrency, formatPercent, calculateOrderTradingCapital, calculateOrderDailyVolume, calculateOrderDailyForexProfit, runSimulationWithDetails } from "@/lib/calculations";
+import { calculateTradingSimulation, calculateDividendPoolProfit, formatNumber, formatCurrency, formatPercent, calculateOrderTradingCapital, calculateOrderDailyVolume, calculateOrderDailyForexProfit, runSimulationWithDetails } from "@/lib/calculations";
 import { Calculator, TrendingUp, Users, Building, Coins, ArrowRight, Package, RefreshCw, FileText } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import DailyDetailsDialog from "@/components/daily-details-dialog";
@@ -170,11 +170,11 @@ export default function TradingPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">交易模拟</h1>
-          <p className="text-muted-foreground">基于所有质押订单的交易收益模拟</p>
+          <p className="text-muted-foreground">基于所有铸造订单的交易收益模拟</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
-            {stakingOrders.length} 笔质押订单
+            {stakingOrders.length} 笔铸造订单
           </Badge>
           <Button 
             variant="outline" 
@@ -225,13 +225,86 @@ export default function TradingPage() {
         </CardContent>
       </Card>
 
+      {/* Dividend Pool Overview (shown when trading mode is dividend_pool) */}
+      {(config.tradingMode ?? 'individual') === 'dividend_pool' && stakingOrders.length > 0 && (() => {
+        const totalDeposit = stakingOrders.reduce((sum, o) => sum + o.amount, 0);
+        const poolCapital = totalDeposit * (config.depositTradingPoolRatio / 100);
+        const dailyPoolProfit = poolCapital * (config.poolDailyProfitRate / 100);
+
+        // Get per-order unclaimed AF from simulation details
+        const lastDetails = new Map<string, number>();
+        let totalUnclaimedAf = 0;
+        for (const order of stakingOrders) {
+          const details = orderDailyDetails.get(order.id);
+          const lastDetail = details && details.length > 0 ? details[details.length - 1] : null;
+          const unclaimed = lastDetail ? lastDetail.afInSystem : 0;
+          lastDetails.set(order.id, unclaimed);
+          totalUnclaimedAf += unclaimed;
+        }
+
+        return (
+          <Card className="border-purple-500/30 bg-purple-500/5">
+            <CardHeader>
+              <CardTitle className="text-lg">交易分红池总览</CardTitle>
+              <CardDescription>全网入金进入量化交易池，按AF持有权重分润</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-3 rounded-md border">
+                  <p className="text-sm text-muted-foreground">全网总入金</p>
+                  <p className="text-lg font-semibold">{formatCurrency(totalDeposit)}</p>
+                </div>
+                <div className="p-3 rounded-md border">
+                  <p className="text-sm text-muted-foreground">交易池本金 ({config.depositTradingPoolRatio}%)</p>
+                  <p className="text-lg font-semibold">{formatCurrency(poolCapital)}</p>
+                </div>
+                <div className="p-3 rounded-md border">
+                  <p className="text-sm text-muted-foreground">日总利润 ({config.poolDailyProfitRate}%)</p>
+                  <p className="text-lg font-semibold text-green-500">{formatCurrency(dailyPoolProfit)}</p>
+                </div>
+                <div className="p-3 rounded-md border">
+                  <p className="text-sm text-muted-foreground">全网未提取AF</p>
+                  <p className="text-lg font-semibold">{formatNumber(totalUnclaimedAf)} AF</p>
+                </div>
+              </div>
+              {/* Per-order weight and share */}
+              {totalUnclaimedAf > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium">个人权重与分润</p>
+                  <div className="space-y-2">
+                    {stakingOrders.map((order) => {
+                      const unclaimed = lastDetails.get(order.id) || 0;
+                      const weight = totalUnclaimedAf > 0 ? unclaimed / totalUnclaimedAf : 0;
+                      const share = dailyPoolProfit * weight;
+                      return (
+                        <div key={order.id} className="flex items-center justify-between p-2 rounded border text-sm">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">#{order.id.slice(-6)}</Badge>
+                            <span className="text-muted-foreground">{formatCurrency(order.amount)}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-muted-foreground">AF: {formatNumber(unclaimed)}</span>
+                            <span className="text-muted-foreground">权重: {(weight * 100).toFixed(1)}%</span>
+                            <span className="font-medium text-green-500">日分润: {formatCurrency(share)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {stakingOrders.length === 0 ? (
         <Card>
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <Coins className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>暂无质押订单</p>
-              <p className="text-sm">请先在质押模拟页面添加订单</p>
+              <p>暂无铸造订单</p>
+              <p className="text-sm">请先在铸造模拟页面添加订单</p>
             </div>
           </CardContent>
         </Card>
@@ -337,7 +410,7 @@ export default function TradingPage() {
                     
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-2 border-t">
                       <div>
-                        <p className="text-xs text-muted-foreground">质押金额</p>
+                        <p className="text-xs text-muted-foreground">铸造金额</p>
                         <p className="text-sm font-medium">{formatCurrency(sim.stakingAmount)}</p>
                       </div>
                       <div>

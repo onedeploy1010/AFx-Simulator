@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue } from "@/lib/calculations";
+import { runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue, isMultiplierCapReached } from "@/lib/calculations";
 import DailyDetailsDialog from "@/components/daily-details-dialog";
 import { type OrderDailyDetail } from "@shared/schema";
 import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle, FileText } from "lucide-react";
@@ -133,11 +133,11 @@ export default function ReleasePage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">释放进度</h1>
-          <p className="text-muted-foreground">当前 Day {currentSimulationDay}，在质押模拟页面前进天数</p>
+          <p className="text-muted-foreground">当前 Day {currentSimulationDay}，在铸造模拟页面前进天数</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
-            {stakingOrders.length} 笔质押订单
+            {stakingOrders.length} 笔铸造订单
           </Badge>
           <Badge variant="outline">
             Day {currentSimulationDay}
@@ -182,7 +182,7 @@ export default function ReleasePage() {
         <Card>
           <CardContent className="py-6">
             <div className="text-center text-muted-foreground">
-              <p>当前 Day 0，请先在质押模拟页面前进天数来查看释放进度</p>
+              <p>当前 Day 0，请先在铸造模拟页面前进天数来查看释放进度</p>
             </div>
           </CardContent>
         </Card>
@@ -197,7 +197,7 @@ export default function ReleasePage() {
               <p className="text-sm">
                 当前查看: <Badge variant="default">{formatCurrency(order?.amount ?? 0)}</Badge>
                 <span className="text-muted-foreground ml-2">
-                  订单 #{orderIdx + 1} | {order?.mode === 'days' ? `${order.durationDays}天模式` : `${order?.daysStaked}天质押`} | Day {order?.startDay ?? 0} 入单
+                  订单 #{orderIdx + 1} | {order?.mode === 'days' ? `${order.durationDays}天模式` : `${order?.daysStaked}天铸造`} | Day {order?.startDay ?? 0} 入单
                 </span>
               </p>
             </CardContent>
@@ -210,8 +210,8 @@ export default function ReleasePage() {
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <Coins className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>暂无质押订单</p>
-              <p className="text-sm">请先在质押模拟页面添加订单</p>
+              <p>暂无铸造订单</p>
+              <p className="text-sm">请先在铸造模拟页面添加订单</p>
             </div>
           </CardContent>
         </Card>
@@ -438,6 +438,20 @@ export default function ReleasePage() {
                             剩余 {progress.daysRemaining} 天
                           </Badge>
                         )}
+                        {/* Multiplier cap status badge for days mode */}
+                        {progress.mode === 'days' && config.multiplierCapEnabled && (() => {
+                          const daysConfig = config.daysConfigs?.find(d => d.days === progress.totalDays);
+                          if (!daysConfig) return null;
+                          const capValue = progress.amount * daysConfig.releaseMultiplier;
+                          const currentValue = progress.totalAfReleased * (simulationResults.length > 0 ? simulationResults[simulationResults.length - 1].afPrice : aamPool.afPrice);
+                          const capped = currentValue >= capValue;
+                          const capProgress = capValue > 0 ? Math.min((currentValue / capValue) * 100, 100) : 0;
+                          return (
+                            <Badge variant={capped ? "destructive" : "outline"} className={capped ? "" : "border-amber-500 text-amber-500"}>
+                              {capped ? "已封顶" : `封顶 ${capProgress.toFixed(0)}%`}
+                            </Badge>
+                          );
+                        })()}
                         <Button
                           variant="outline"
                           size="sm"
@@ -458,7 +472,7 @@ export default function ReleasePage() {
                       <Progress value={progress.progressPercent} className="h-2" />
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>第 {progress.currentDay} 天 / 共 {progress.totalDays} 天</span>
-                        <span>质押金额: {formatCurrency(progress.amount)}</span>
+                        <span>铸造金额: {formatCurrency(progress.amount)}</span>
                       </div>
                     </div>
                     
@@ -475,6 +489,19 @@ export default function ReleasePage() {
                         <p className="text-xs text-muted-foreground">AF 价值 (USDC)</p>
                         <p className="text-sm font-medium">{formatCurrency(progress.totalAfValue)}</p>
                       </div>
+                      {progress.mode === 'days' && config.multiplierCapEnabled && (() => {
+                        const daysConfig = config.daysConfigs?.find(d => d.days === progress.totalDays);
+                        if (!daysConfig) return null;
+                        const capValue = progress.amount * daysConfig.releaseMultiplier;
+                        const currentAfPrice = simulationResults.length > 0 ? simulationResults[simulationResults.length - 1].afPrice : aamPool.afPrice;
+                        const currentValue = progress.totalAfReleased * currentAfPrice;
+                        return (
+                          <div>
+                            <p className="text-xs text-muted-foreground">封顶进度</p>
+                            <p className="text-sm font-medium">{formatCurrency(currentValue)} / {formatCurrency(capValue)}</p>
+                          </div>
+                        );
+                      })()}
                       {progress.afKeptInSystem > 0 && (
                         <div>
                           <p className="text-xs text-muted-foreground">系统内保留 AF</p>

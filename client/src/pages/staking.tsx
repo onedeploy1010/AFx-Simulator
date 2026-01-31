@@ -129,8 +129,8 @@ export default function StakingPage() {
     <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">质押模拟</h1>
-          <p className="text-muted-foreground">支持用户叠加多笔质押订单</p>
+          <h1 className="text-xl md:text-2xl font-bold">铸造模拟</h1>
+          <p className="text-muted-foreground">支持用户叠加多笔铸造订单</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button
@@ -170,7 +170,7 @@ export default function StakingPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>总质押金额</CardDescription>
+            <CardDescription>总铸造金额</CardDescription>
             <CardTitle className="text-xl md:text-3xl">{formatCurrency(totalStaked)}</CardTitle>
           </CardHeader>
           <CardContent>
@@ -322,7 +322,7 @@ export default function StakingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">添加质押订单</CardTitle>
+          <CardTitle className="text-lg">添加铸造订单</CardTitle>
           <CardDescription>
             {config.simulationMode === 'days' ? '输入金额和选择周期' : '选择配套档位和数量'}
           </CardDescription>
@@ -376,7 +376,7 @@ export default function StakingPage() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-end gap-4">
                 <div className="space-y-2 w-full md:w-40">
-                  <Label>质押金额 (USDC)</Label>
+                  <Label>铸造金额 (USDC)</Label>
                   <Input
                     type="number"
                     value={daysAmount}
@@ -388,7 +388,7 @@ export default function StakingPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>质押周期</Label>
+                  <Label>铸造周期</Label>
                   <div className="flex gap-2">
                     {DAYS_MODE_TIERS.map((d) => (
                       <Button
@@ -487,7 +487,7 @@ export default function StakingPage() {
               </div>
               {config.stakingEnabled && (
                 <div className="space-y-2 w-28">
-                  <Label>质押周期(天)</Label>
+                  <Label>铸造周期(天)</Label>
                   <Input
                     type="number"
                     value={stakingDays}
@@ -504,7 +504,7 @@ export default function StakingPage() {
               </Button>
               {!config.stakingEnabled && (
                 <div className="mt-4 p-3 rounded-md bg-muted text-muted-foreground text-sm">
-                  质押周期已禁用，AF 将立即释放
+                  铸造周期已禁用，AF 将立即释放
                 </div>
               )}
             </div>
@@ -537,7 +537,7 @@ export default function StakingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">订单详情</CardTitle>
-            <CardDescription>所有质押订单列表</CardDescription>
+            <CardDescription>所有铸造订单列表</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -581,7 +581,7 @@ export default function StakingPage() {
 
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
                       <div>
-                        <p className="text-xs text-muted-foreground">质押金额</p>
+                        <p className="text-xs text-muted-foreground">铸造金额</p>
                         <p className="font-medium">{formatCurrency(order.amount)}</p>
                       </div>
                       <div>
@@ -590,7 +590,7 @@ export default function StakingPage() {
                       </div>
                       {config.stakingEnabled && (
                         <div>
-                          <p className="text-xs text-muted-foreground">质押周期</p>
+                          <p className="text-xs text-muted-foreground">铸造周期</p>
                           <p className="font-medium">{order.daysStaked} 天</p>
                         </div>
                       )}
@@ -631,8 +631,8 @@ export default function StakingPage() {
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <Coins className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>暂无质押订单</p>
-              <p className="text-sm">添加质押订单开始模拟</p>
+              <p>暂无铸造订单</p>
+              <p className="text-sm">添加铸造订单开始模拟</p>
             </div>
           </CardContent>
         </Card>

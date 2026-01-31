@@ -592,7 +592,7 @@ export default function BrokerPage() {
                       <TableRow>
                         <TableHead>层级</TableHead>
                         <TableHead>订单</TableHead>
-                        <TableHead className="text-right">质押金额</TableHead>
+                        <TableHead className="text-right">铸造金额</TableHead>
                         <TableHead className="text-right">日AF释放</TableHead>
                         <TableHead className="text-right">AF价值 (USDC)</TableHead>
                       </TableRow>

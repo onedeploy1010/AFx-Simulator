@@ -213,7 +213,7 @@ export default function CLMMPage() {
           <div>
             <h1 className="text-xl md:text-2xl font-bold">CLMM 集中流动性模拟</h1>
             <p className="text-muted-foreground">
-              Uniswap V3 风格集中流动性仓位模拟，自动从质押模拟派生参数
+              Uniswap V3 风格集中流动性仓位模拟，自动从铸造模拟派生参数
             </p>
           </div>
           <Badge variant="outline" className="text-sm">
@@ -224,10 +224,10 @@ export default function CLMMPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
             <AlertCircle className="h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">暂无质押订单</h3>
+            <h3 className="text-lg font-semibold">暂无铸造订单</h3>
             <p className="text-muted-foreground text-center max-w-md">
-              CLMM 模拟参数自动从质押模拟的买盘/卖盘数据派生。
-              请先在「质押模拟」页面添加订单，然后返回此页面查看 CLMM 分析。
+              CLMM 模拟参数自动从铸造模拟的买盘/卖盘数据派生。
+              请先在「铸造模拟」页面添加订单，然后返回此页面查看 CLMM 分析。
             </p>
           </CardContent>
         </Card>
@@ -242,7 +242,7 @@ export default function CLMMPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-bold">CLMM 集中流动性模拟</h1>
           <p className="text-muted-foreground">
-            Uniswap V3 风格集中流动性仓位模拟，自动从质押模拟派生参数
+            Uniswap V3 风格集中流动性仓位模拟，自动从铸造模拟派生参数
           </p>
         </div>
         <Badge variant="outline" className="text-sm">
@@ -256,7 +256,7 @@ export default function CLMMPage() {
         <CardHeader>
           <CardTitle className="text-lg">CLMM 参数设定</CardTitle>
           <CardDescription>
-            仅需设定手续费档位、区间宽度和模拟天数，其余参数自动从质押模拟派生
+            仅需设定手续费档位、区间宽度和模拟天数，其余参数自动从铸造模拟派生
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -7,6 +7,9 @@ export type PackageTier = typeof PACKAGE_TIERS[number];
 // AF Release Mode
 export type AFReleaseMode = 'gold_standard' | 'coin_standard';
 
+// Trading Mode
+export type TradingMode = 'individual' | 'dividend_pool';
+
 // Simulation Mode
 export type SimulationMode = 'package' | 'days';
 
@@ -92,6 +95,17 @@ export const afxConfigSchema = z.object({
   buybackRatio: z.number().min(0).max(100), // % to buyback
   reserveRatio: z.number().min(0).max(100), // % to forex reserve
   
+  // Multiplier cap for days mode (stop releasing when AF value reaches principal × multiplier)
+  multiplierCapEnabled: z.boolean(),
+
+  // Trading mode: individual (per-order trading) or dividend_pool (AF-weighted pool distribution)
+  tradingMode: z.enum(['individual', 'dividend_pool']),
+
+  // Dividend pool parameters
+  dividendMarginMultiplier: z.number().min(0), // Margin multiplier for dividend pool
+  depositTradingPoolRatio: z.number().min(0).max(100), // % of deposits into trading pool
+  poolDailyProfitRate: z.number().min(0).max(100), // Daily profit rate of trading pool
+
   // Broker system — layer rates, level access, dividend rates
   brokerLayerRates: z.array(z.object({
     fromLayer: z.number(),
@@ -264,6 +278,11 @@ export const defaultConfig: AFxConfig = {
   lpPoolAfRatio: 30,
   buybackRatio: 20,
   reserveRatio: 50,
+  multiplierCapEnabled: true,
+  tradingMode: 'individual',
+  dividendMarginMultiplier: 3,
+  depositTradingPoolRatio: 50,
+  poolDailyProfitRate: 10,
   brokerLayerRates: [
     { fromLayer: 1, toLayer: 8, ratePercent: 4 },
     { fromLayer: 9, toLayer: 20, ratePercent: 3 },

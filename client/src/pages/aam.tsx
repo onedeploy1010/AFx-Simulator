@@ -231,7 +231,7 @@ export default function AAMPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">{simDays}天模拟预测</CardTitle>
-            <CardDescription>基于当前质押订单的全周期模拟结果</CardDescription>
+            <CardDescription>基于当前铸造订单的全周期模拟结果</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -268,8 +268,8 @@ export default function AAMPage() {
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>暂无质押订单</p>
-              <p className="text-sm">添加质押订单后，这里将显示模拟预测</p>
+              <p>暂无铸造订单</p>
+              <p className="text-sm">添加铸造订单后，这里将显示模拟预测</p>
             </div>
           </CardContent>
         </Card>

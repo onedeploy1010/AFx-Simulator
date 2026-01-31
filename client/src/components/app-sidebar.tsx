@@ -26,10 +26,10 @@ import { useConfigStore } from "@/hooks/use-config";
 
 const menuItems = [
   {
-    title: "质押模拟",
+    title: "铸造模拟",
     url: "/staking",
     icon: Coins,
-    description: "叠加多笔质押订单",
+    description: "叠加多笔铸造订单",
   },
   {
     title: "释放进度",
