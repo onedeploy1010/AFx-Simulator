@@ -24,10 +24,10 @@ export default function StakingPage() {
   
   const [selectedTier, setSelectedTier] = useState<string>("1000");
   const [amount, setAmount] = useState<string>("1");
-  const [daysAmount, setDaysAmount] = useState<string>("1000");
+  const [daysAmount, setDaysAmount] = useState<string>("5000");
   const [daysDuration, setDaysDuration] = useState<number>(30);
   const [targetDay, setTargetDay] = useState<string>("");
-  const [withdrawPercent, setWithdrawPercent] = useState<number>(60);
+  const [withdrawPercent, setWithdrawPercent] = useState<number>(50);
   
   const selectedPackage = config.packageConfigs.find(p => p.tier === parseInt(selectedTier));
   const defaultStakingDays = selectedPackage?.stakingPeriodDays || 30;
@@ -107,7 +107,7 @@ export default function StakingPage() {
       title: "天数模式订单已添加",
       description: `${amt} USDC, ${daysDuration}天, 总释放 ${totalMsToRelease.toFixed(2)} MS`,
     });
-    setDaysAmount("1000");
+    setDaysAmount("5000");
   };
 
   const totalStaked = stakingOrders.reduce((sum, order) => sum + order.amount, 0);
@@ -248,23 +248,35 @@ export default function StakingPage() {
           <CardDescription>控制当前模拟天数，观察不同时间点的状态</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">当前模拟天数:</span>
+              <span className="text-sm font-medium">当前:</span>
               <Badge variant="secondary" className="text-lg px-3 py-1">
                 Day {currentSimulationDay}
               </Badge>
             </div>
+            <div className="flex items-center gap-1">
+              {[1, 5, 10].map((n) => (
+                <Button
+                  key={n}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSimulationDay(currentSimulationDay + n)}
+                >
+                  +{n}
+                </Button>
+              ))}
+            </div>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                placeholder="前进到第N天"
+                placeholder="跳转到第N天"
                 value={targetDay}
                 onChange={(e) => setTargetDay(e.target.value)}
                 className="w-28 md:w-36"
                 min={0}
-                max={180}
+                max={365}
               />
               <Button
                 size="sm"
@@ -375,7 +387,7 @@ export default function StakingPage() {
             /* Days Mode Order Creation */
             <div className="space-y-4">
               <div className="flex flex-wrap items-end gap-4">
-                <div className="space-y-2 w-full md:w-40">
+                <div className="space-y-2 w-full md:w-auto">
                   <Label>铸造金额 (USDC)</Label>
                   <Input
                     type="number"
@@ -384,8 +396,33 @@ export default function StakingPage() {
                     min={100}
                     step={100}
                     placeholder="100的倍数"
+                    className="w-full md:w-40"
                     data-testid="input-days-amount"
                   />
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { label: '-10K', value: -10000 },
+                      { label: '-1K', value: -1000 },
+                      { label: '-100', value: -100 },
+                      { label: '+100', value: 100 },
+                      { label: '+1K', value: 1000 },
+                      { label: '+10K', value: 10000 },
+                    ].map((btn) => (
+                      <Button
+                        key={btn.label}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 px-2"
+                        onClick={() => {
+                          const current = parseFloat(daysAmount) || 0;
+                          const next = Math.max(100, current + btn.value);
+                          setDaysAmount(String(next));
+                        }}
+                      >
+                        {btn.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>铸造周期</Label>
