@@ -197,7 +197,7 @@ export default function TradingPage() {
           <CardDescription>设置模拟周期</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-6">
+          <div className="space-y-4 md:space-y-0 md:flex md:items-end md:gap-6">
             <div className="flex-1 space-y-2">
               <Label>模拟天数: {simulationDays} 天</Label>
               <Slider

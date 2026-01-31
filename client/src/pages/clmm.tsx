@@ -208,10 +208,10 @@ export default function CLMMPage() {
   // Empty state
   if (stakingOrders.length === 0) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-3 md:p-6 space-y-4 md:space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">CLMM 集中流动性模拟</h1>
+            <h1 className="text-xl md:text-2xl font-bold">CLMM 集中流动性模拟</h1>
             <p className="text-muted-foreground">
               Uniswap V3 风格集中流动性仓位模拟，自动从质押模拟派生参数
             </p>
@@ -236,11 +236,11 @@ export default function CLMMPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">CLMM 集中流动性模拟</h1>
+          <h1 className="text-xl md:text-2xl font-bold">CLMM 集中流动性模拟</h1>
           <p className="text-muted-foreground">
             Uniswap V3 风格集中流动性仓位模拟，自动从质押模拟派生参数
           </p>
@@ -401,7 +401,7 @@ export default function CLMMPage() {
       </div>
 
       {/* CLMM Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
@@ -504,7 +504,7 @@ export default function CLMMPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[220px] md:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -562,7 +562,7 @@ export default function CLMMPage() {
           <CardDescription>每日卖盘 (红) vs 买盘 (绿) 及净流向 (线)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[220px] md:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={buySellChartData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -624,7 +624,7 @@ export default function CLMMPage() {
             <CardDescription>LP 仓位与持币不动对比</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] md:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -674,7 +674,7 @@ export default function CLMMPage() {
             <CardDescription>AF 价值 + USDC 组成的仓位价值</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] md:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -726,7 +726,7 @@ export default function CLMMPage() {
             <CardDescription>仅在价格处于区间内时累积</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] md:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -766,7 +766,7 @@ export default function CLMMPage() {
             <CardDescription>含手续费的仓位总价值对比</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] md:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

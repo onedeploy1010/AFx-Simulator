@@ -126,13 +126,13 @@ export default function StakingPage() {
   })).filter(t => t.count > 0);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">质押模拟</h1>
+          <h1 className="text-xl md:text-2xl font-bold">质押模拟</h1>
           <p className="text-muted-foreground">支持用户叠加多笔质押订单</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => {
@@ -171,7 +171,7 @@ export default function StakingPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>总质押金额</CardDescription>
-            <CardTitle className="text-3xl">{formatCurrency(totalStaked)}</CardTitle>
+            <CardTitle className="text-xl md:text-3xl">{formatCurrency(totalStaked)}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export default function StakingPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>总交易金</CardDescription>
-            <CardTitle className="text-3xl">{formatCurrency(totalTradingCapital)}</CardTitle>
+            <CardTitle className="text-xl md:text-3xl">{formatCurrency(totalTradingCapital)}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -199,7 +199,7 @@ export default function StakingPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>预估日释放 AF</CardDescription>
-            <CardTitle className="text-3xl">{formatNumber(avgDailyRelease)} AF</CardTitle>
+            <CardTitle className="text-xl md:text-3xl">{formatNumber(avgDailyRelease)} AF</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -214,7 +214,7 @@ export default function StakingPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>当前 AF 价格</CardDescription>
-            <CardTitle className="text-3xl">${aamPool.afPrice.toFixed(6)}</CardTitle>
+            <CardTitle className="text-xl md:text-3xl">${aamPool.afPrice.toFixed(6)}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -262,7 +262,7 @@ export default function StakingPage() {
                 placeholder="前进到第N天"
                 value={targetDay}
                 onChange={(e) => setTargetDay(e.target.value)}
-                className="w-36"
+                className="w-28 md:w-36"
                 min={0}
                 max={180}
               />
@@ -296,11 +296,15 @@ export default function StakingPage() {
           {/* Timeline bar */}
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Day 0</span>
-              <span>Day 30</span>
-              <span>Day 60</span>
-              <span>Day 90</span>
-              <span>Day 180</span>
+              <span>0</span>
+              <span className="hidden sm:inline">Day 30</span>
+              <span className="sm:hidden">30</span>
+              <span className="hidden sm:inline">Day 60</span>
+              <span className="sm:hidden">60</span>
+              <span className="hidden sm:inline">Day 90</span>
+              <span className="sm:hidden">90</span>
+              <span className="hidden sm:inline">Day 180</span>
+              <span className="sm:hidden">180</span>
             </div>
             <div className="relative w-full h-3 bg-muted rounded-full overflow-hidden">
               <div
@@ -371,7 +375,7 @@ export default function StakingPage() {
             /* Days Mode Order Creation */
             <div className="space-y-4">
               <div className="flex flex-wrap items-end gap-4">
-                <div className="space-y-2 w-40">
+                <div className="space-y-2 w-full md:w-40">
                   <Label>质押金额 (USDC)</Label>
                   <Input
                     type="number"
@@ -545,7 +549,7 @@ export default function StakingPage() {
                 return (
                   <div key={order.id} className="p-4 rounded-md border space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant={order.mode === 'days' ? 'default' : 'secondary'}>
                           {order.mode === 'days' ? '天数' : '配套'}
                         </Badge>
@@ -575,7 +579,7 @@ export default function StakingPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">质押金额</p>
                         <p className="font-medium">{formatCurrency(order.amount)}</p>

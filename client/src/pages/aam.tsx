@@ -79,10 +79,10 @@ export default function AAMPage() {
   const priceChange = lastDay ? ((finalPrice / initialPrice) - 1) * 100 : 0;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">AAM 池监控</h1>
+          <h1 className="text-xl md:text-2xl font-bold">AAM 池监控</h1>
           <p className="text-muted-foreground">LP 池规模、AF 币价变化与回购销毁</p>
         </div>
         <div className="flex items-center gap-2">
@@ -104,7 +104,7 @@ export default function AAMPage() {
               <DollarSign className="h-4 w-4" />
               USDC 余额
             </CardDescription>
-            <CardTitle className="text-2xl">{formatCurrency(finalUsdc)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">{formatCurrency(finalUsdc)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -119,7 +119,7 @@ export default function AAMPage() {
               <Coins className="h-4 w-4" />
               AF 余额
             </CardDescription>
-            <CardTitle className="text-2xl">{formatNumber(finalAf)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">{formatNumber(finalAf)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -134,7 +134,7 @@ export default function AAMPage() {
               <TrendingUp className="h-4 w-4" />
               AF 价格
             </CardDescription>
-            <CardTitle className="text-2xl">${finalPrice.toFixed(6)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">${finalPrice.toFixed(6)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -154,7 +154,7 @@ export default function AAMPage() {
               <Droplets className="h-4 w-4" />
               池总价值 (TVL)
             </CardDescription>
-            <CardTitle className="text-2xl">{formatCurrency(finalTvl)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">{formatCurrency(finalTvl)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -169,7 +169,7 @@ export default function AAMPage() {
               <Activity className="h-4 w-4" />
               USDC / AF 比例
             </CardDescription>
-            <CardTitle className="text-2xl">1 : {finalAf > 0 && finalUsdc > 0 ? formatNumber(finalAf / finalUsdc, 0) : '0'}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">1 : {finalAf > 0 && finalUsdc > 0 ? formatNumber(finalAf / finalUsdc, 0) : '0'}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
@@ -184,7 +184,7 @@ export default function AAMPage() {
           <Card className="border-red-500/30">
             <CardHeader className="pb-2">
               <CardDescription className="text-red-400">日均卖盘 (USDC)</CardDescription>
-              <CardTitle className="text-xl text-red-400">{formatCurrency(totals.avgDailySell)}</CardTitle>
+              <CardTitle className="text-lg md:text-xl text-red-400">{formatCurrency(totals.avgDailySell)}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">累计: {formatCurrency(totals.totalSellPressure)}</p>
@@ -193,7 +193,7 @@ export default function AAMPage() {
           <Card className="border-green-500/30">
             <CardHeader className="pb-2">
               <CardDescription className="text-green-400">日均买盘 (USDC)</CardDescription>
-              <CardTitle className="text-xl text-green-400">{formatCurrency(totals.avgDailyBuy)}</CardTitle>
+              <CardTitle className="text-lg md:text-xl text-green-400">{formatCurrency(totals.avgDailyBuy)}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">累计: {formatCurrency(totals.totalBuyback)}</p>
@@ -202,7 +202,7 @@ export default function AAMPage() {
           <Card className={totals.avgDailyBuy - totals.avgDailySell >= 0 ? "border-blue-500/30" : "border-red-500/30"}>
             <CardHeader className="pb-2">
               <CardDescription>净流向 (USDC)</CardDescription>
-              <CardTitle className={`text-xl ${totals.avgDailyBuy - totals.avgDailySell >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+              <CardTitle className={`text-lg md:text-xl ${totals.avgDailyBuy - totals.avgDailySell >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
                 {totals.avgDailyBuy - totals.avgDailySell >= 0 ? '+' : ''}{formatCurrency(totals.avgDailyBuy - totals.avgDailySell)}
               </CardTitle>
             </CardHeader>
@@ -218,7 +218,7 @@ export default function AAMPage() {
                 <Flame className="h-4 w-4" />
                 累计销毁
               </CardDescription>
-              <CardTitle className="text-xl">{formatNumber(totals.totalBurn)} AF</CardTitle>
+              <CardTitle className="text-lg md:text-xl">{formatNumber(totals.totalBurn)} AF</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">价值 {formatCurrency(totals.totalBurn * finalPrice)}</p>
@@ -281,7 +281,7 @@ export default function AAMPage() {
           <CardDescription>基于当前配置的币价变化趋势（模拟最终状态）</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[220px] md:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={poolHistory}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -325,7 +325,7 @@ export default function AAMPage() {
           <CardDescription>USDC + AF价值 的变化趋势</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
+          <div className="h-[200px] md:h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={poolHistory}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -349,7 +349,7 @@ export default function AAMPage() {
             <CardTitle className="text-lg">USDC 余额变化</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px]">
+            <div className="h-[180px] md:h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={poolHistory}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -381,7 +381,7 @@ export default function AAMPage() {
             <CardTitle className="text-lg">AF 余额变化</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px]">
+            <div className="h-[180px] md:h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={poolHistory}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

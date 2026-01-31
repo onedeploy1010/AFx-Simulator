@@ -314,9 +314,9 @@ export default function BrokerPage() {
       {/* Main Tabs */}
       <Tabs defaultValue="layer-af" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="layer-af">层级AF释放收益</TabsTrigger>
-          <TabsTrigger value="trading-dividend">交易利润分红</TabsTrigger>
-          <TabsTrigger value="estimation">综合收益估算</TabsTrigger>
+          <TabsTrigger value="layer-af" className="text-xs sm:text-sm px-1 sm:px-3">层级AF收益</TabsTrigger>
+          <TabsTrigger value="trading-dividend" className="text-xs sm:text-sm px-1 sm:px-3">交易分红</TabsTrigger>
+          <TabsTrigger value="estimation" className="text-xs sm:text-sm px-1 sm:px-3">综合估算</TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Layer AF Income */}

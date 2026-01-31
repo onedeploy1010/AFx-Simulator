@@ -414,7 +414,7 @@ export default function ReleasePage() {
                   return (
                   <div key={progress.orderId} className="p-4 rounded-md border space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant={progress.isComplete ? "default" : "secondary"}>
                           #{orderNum}
                         </Badge>
@@ -426,7 +426,7 @@ export default function ReleasePage() {
                           Day {progress.startDay} 入单
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {progress.isComplete ? (
                           <Badge variant="default" className="bg-green-500">
                             <CheckCircle className="h-3 w-3 mr-1" />

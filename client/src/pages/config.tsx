@@ -40,10 +40,10 @@ export default function ConfigPage() {
   const depositReserveRatio = calculateDepositReserveRatio(config);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold">参数配置</h1>
+          <h1 className="text-xl md:text-2xl font-bold">参数配置</h1>
           <p className="text-muted-foreground">统一修改所有参数与公式来源</p>
         </div>
         <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export default function ConfigPage() {
       </div>
 
       <Tabs defaultValue="core" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 gap-2">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-2">
           <TabsTrigger value="core" data-testid="tab-core">
             <Settings className="h-4 w-4 mr-2" />
             核心参数
@@ -177,7 +177,7 @@ export default function ConfigPage() {
               <CardDescription>设置 AMM 初始流动性池</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>初始 USDC</Label>
                   <Input
@@ -332,7 +332,7 @@ export default function ConfigPage() {
                   <CardDescription>设置该配套的所有参数</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="space-y-2">
                       <Label>释放倍数</Label>
                       <Input
@@ -372,7 +372,7 @@ export default function ConfigPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                     <div className="space-y-2">
                       <Label>交易利润率 (%)</Label>
                       <Input
@@ -481,7 +481,7 @@ export default function ConfigPage() {
                     <CardDescription>设置 {days} 天模式的参数</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                       <div className="space-y-2">
                         <Label>释放倍数</Label>
                         <Input
@@ -556,7 +556,7 @@ export default function ConfigPage() {
               <CardDescription>每笔交易资金的分配比例 (基于交易本金)</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>LP 池 USDC (%)</Label>
                   <Input
@@ -656,7 +656,7 @@ export default function ConfigPage() {
               <CardDescription>V1-V6 各等级可访问的最大层级</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 {config.brokerLevelAccess.map((la) => (
                   <div key={la.level} className="p-3 rounded-md border text-center">
                     <Badge variant="default" className="mb-2">{la.level}</Badge>
@@ -674,7 +674,7 @@ export default function ConfigPage() {
               <CardDescription>V1-V6 各等级的交易利润分红比例（级差制度）</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
                 {config.brokerDividendRates.map((rate, index) => (
                   <div key={index} className="space-y-2">
                     <Label>V{index + 1} (%)</Label>
