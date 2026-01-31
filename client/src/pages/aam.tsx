@@ -33,30 +33,30 @@ export default function AAMPage() {
   // Derive final pool state from simulation (same treatment as CLMM)
   const lastDay = simulationResults.length > 0 ? simulationResults[simulationResults.length - 1] : null;
   const finalUsdc = lastDay ? lastDay.poolUsdcBalance : aamPool.usdcBalance;
-  const finalAf = lastDay ? lastDay.poolAfBalance : aamPool.afBalance;
-  const finalPrice = lastDay ? lastDay.afPrice : aamPool.afPrice;
-  const finalTvl = lastDay ? lastDay.poolTotalValue : (aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice);
+  const finalAf = lastDay ? lastDay.poolMsBalance : aamPool.msBalance;
+  const finalPrice = lastDay ? lastDay.msPrice : aamPool.msPrice;
+  const finalTvl = lastDay ? lastDay.poolTotalValue : (aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice);
 
   const poolHistory = useMemo(() => {
     if (simulationResults.length === 0) {
-      const tvl = aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice;
+      const tvl = aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice;
       return Array.from({ length: 31 }, (_, i) => ({
         day: i,
-        price: aamPool.afPrice,
+        price: aamPool.msPrice,
         usdc: aamPool.usdcBalance,
-        af: aamPool.afBalance,
+        af: aamPool.msBalance,
         tvl,
       }));
     }
 
-    const initialTvl = aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice;
+    const initialTvl = aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice;
     return [
-      { day: 0, price: aamPool.afPrice, usdc: aamPool.usdcBalance, af: aamPool.afBalance, tvl: initialTvl },
+      { day: 0, price: aamPool.msPrice, usdc: aamPool.usdcBalance, af: aamPool.msBalance, tvl: initialTvl },
       ...simulationResults.map(r => ({
         day: r.day,
-        price: r.afPrice,
+        price: r.msPrice,
         usdc: r.poolUsdcBalance,
-        af: r.poolAfBalance,
+        af: r.poolMsBalance,
         tvl: r.poolTotalValue,
       }))
     ];
@@ -66,11 +66,11 @@ export default function AAMPage() {
     if (simulationResults.length === 0) return null;
     return {
       totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
-      totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
+      totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountMs, 0),
       totalLpUsdc: simulationResults.reduce((sum, r) => sum + r.lpContributionUsdc, 0),
-      totalLpAf: simulationResults.reduce((sum, r) => sum + r.lpContributionAfValue, 0),
-      totalSellPressure: simulationResults.reduce((sum, r) => sum + r.afSellingRevenueUsdc, 0),
-      avgDailySell: simulationResults.reduce((sum, r) => sum + r.afSellingRevenueUsdc, 0) / simulationResults.length,
+      totalLpAf: simulationResults.reduce((sum, r) => sum + r.lpContributionMsValue, 0),
+      totalSellPressure: simulationResults.reduce((sum, r) => sum + r.msSellingRevenueUsdc, 0),
+      avgDailySell: simulationResults.reduce((sum, r) => sum + r.msSellingRevenueUsdc, 0) / simulationResults.length,
       avgDailyBuy: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0) / simulationResults.length,
     };
   }, [simulationResults]);
@@ -83,7 +83,7 @@ export default function AAMPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">AAM 池监控</h1>
-          <p className="text-muted-foreground">LP 池规模、AF 币价变化与回购销毁</p>
+          <p className="text-muted-foreground">LP 池规模、MS 币价变化与回购销毁</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
@@ -117,13 +117,13 @@ export default function AAMPage() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Coins className="h-4 w-4" />
-              AF 余额
+              MS 余额
             </CardDescription>
             <CardTitle className="text-lg md:text-2xl">{formatNumber(finalAf)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              初始: {formatNumber(aamPool.afBalance)} → 价值 {formatCurrency(finalAf * finalPrice)}
+              初始: {formatNumber(aamPool.msBalance)} → 价值 {formatCurrency(finalAf * finalPrice)}
             </p>
           </CardContent>
         </Card>
@@ -132,7 +132,7 @@ export default function AAMPage() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              AF 价格
+              MS 价格
             </CardDescription>
             <CardTitle className="text-lg md:text-2xl">${finalPrice.toFixed(6)}</CardTitle>
           </CardHeader>
@@ -158,7 +158,7 @@ export default function AAMPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              初始: {formatCurrency(aamPool.usdcBalance + aamPool.afBalance * aamPool.afPrice)}
+              初始: {formatCurrency(aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice)}
             </p>
           </CardContent>
         </Card>
@@ -167,13 +167,13 @@ export default function AAMPage() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
-              USDC / AF 比例
+              USDC / MS 比例
             </CardDescription>
             <CardTitle className="text-lg md:text-2xl">1 : {finalAf > 0 && finalUsdc > 0 ? formatNumber(finalAf / finalUsdc, 0) : '0'}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              初始: 1 : {aamPool.afBalance > 0 && aamPool.usdcBalance > 0 ? formatNumber(aamPool.afBalance / aamPool.usdcBalance, 0) : '0'}
+              初始: 1 : {aamPool.msBalance > 0 && aamPool.usdcBalance > 0 ? formatNumber(aamPool.msBalance / aamPool.usdcBalance, 0) : '0'}
             </p>
           </CardContent>
         </Card>
@@ -218,7 +218,7 @@ export default function AAMPage() {
                 <Flame className="h-4 w-4" />
                 累计销毁
               </CardDescription>
-              <CardTitle className="text-lg md:text-xl">{formatNumber(totals.totalBurn)} AF</CardTitle>
+              <CardTitle className="text-lg md:text-xl">{formatNumber(totals.totalBurn)} MS</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">价值 {formatCurrency(totals.totalBurn * finalPrice)}</p>
@@ -241,14 +241,14 @@ export default function AAMPage() {
               </div>
               <div className="p-3 rounded-md border">
                 <p className="text-sm text-muted-foreground">累计销毁</p>
-                <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} AF</p>
+                <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} MS</p>
               </div>
               <div className="p-3 rounded-md border">
                 <p className="text-sm text-muted-foreground">LP 注入 USDC</p>
                 <p className="text-lg font-semibold">{formatCurrency(totals.totalLpUsdc)}</p>
               </div>
               <div className="p-3 rounded-md border">
-                <p className="text-sm text-muted-foreground">LP 注入 AF 价值</p>
+                <p className="text-sm text-muted-foreground">LP 注入 MS 价值</p>
                 <p className="text-lg font-semibold">{formatCurrency(totals.totalLpAf)}</p>
               </div>
               <div className="p-3 rounded-md border">
@@ -303,7 +303,7 @@ export default function AAMPage() {
                     borderColor: 'hsl(var(--border))',
                     borderRadius: '6px',
                   }}
-                  formatter={(value: number) => [`$${value.toFixed(4)}`, 'AF 价格']}
+                  formatter={(value: number) => [`$${value.toFixed(4)}`, 'MS 价格']}
                   labelFormatter={(label) => `Day ${label}`}
                 />
                 <Area
@@ -322,7 +322,7 @@ export default function AAMPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">{simDays}天池总价值 (TVL)</CardTitle>
-          <CardDescription>USDC + AF价值 的变化趋势</CardDescription>
+          <CardDescription>USDC + MS价值 的变化趋势</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[200px] md:h-[250px]">
@@ -378,7 +378,7 @@ export default function AAMPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">AF 余额变化</CardTitle>
+            <CardTitle className="text-lg">MS 余额变化</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[180px] md:h-[200px]">
@@ -393,7 +393,7 @@ export default function AAMPage() {
                       borderColor: 'hsl(var(--border))',
                       borderRadius: '6px',
                     }}
-                    formatter={(value: number) => [formatNumber(value), 'AF']}
+                    formatter={(value: number) => [formatNumber(value), 'MS']}
                   />
                   <Line
                     type="monotone"

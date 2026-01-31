@@ -43,13 +43,13 @@ function aggregateAllOrders(
       orderId: "all",
       principalRelease: 0,
       interestRelease: 0,
-      dailyAfRelease: 0,
-      afPrice: 0,
-      cumAfReleased: 0,
-      afInSystem: 0,
+      dailyMsRelease: 0,
+      msPrice: 0,
+      cumMsReleased: 0,
+      msInSystem: 0,
       tradingCapital: 0,
       forexIncome: 0,
-      withdrawnAf: 0,
+      withdrawnMs: 0,
       withdrawFee: 0,
     });
   }
@@ -61,13 +61,13 @@ function aggregateAllOrders(
       if (!agg) continue;
       agg.principalRelease += d.principalRelease;
       agg.interestRelease += d.interestRelease;
-      agg.dailyAfRelease += d.dailyAfRelease;
-      agg.afPrice = d.afPrice; // price is the same across orders on a given day
-      agg.cumAfReleased += d.cumAfReleased;
-      agg.afInSystem += d.afInSystem;
+      agg.dailyMsRelease += d.dailyMsRelease;
+      agg.msPrice = d.msPrice; // price is the same across orders on a given day
+      agg.cumMsReleased += d.cumMsReleased;
+      agg.msInSystem += d.msInSystem;
       agg.tradingCapital += d.tradingCapital;
       agg.forexIncome += d.forexIncome;
-      agg.withdrawnAf += d.withdrawnAf;
+      agg.withdrawnMs += d.withdrawnMs;
       agg.withdrawFee += d.withdrawFee;
     }
   });
@@ -81,23 +81,23 @@ function computeSummary(rows: OrderDailyDetail[]) {
     (acc, r) => ({
       principalRelease: acc.principalRelease + r.principalRelease,
       interestRelease: acc.interestRelease + r.interestRelease,
-      dailyAfRelease: acc.dailyAfRelease + r.dailyAfRelease,
-      cumAfReleased: r.cumAfReleased, // last row's cumulative is the running total
-      afInSystem: r.afInSystem,
+      dailyMsRelease: acc.dailyMsRelease + r.dailyMsRelease,
+      cumMsReleased: r.cumMsReleased, // last row's cumulative is the running total
+      msInSystem: r.msInSystem,
       tradingCapital: acc.tradingCapital + r.tradingCapital,
       forexIncome: acc.forexIncome + r.forexIncome,
-      withdrawnAf: acc.withdrawnAf + r.withdrawnAf,
+      withdrawnMs: acc.withdrawnMs + r.withdrawnMs,
       withdrawFee: acc.withdrawFee + r.withdrawFee,
     }),
     {
       principalRelease: 0,
       interestRelease: 0,
-      dailyAfRelease: 0,
-      cumAfReleased: 0,
-      afInSystem: 0,
+      dailyMsRelease: 0,
+      cumMsReleased: 0,
+      msInSystem: 0,
       tradingCapital: 0,
       forexIncome: 0,
-      withdrawnAf: 0,
+      withdrawnMs: 0,
       withdrawFee: 0,
     }
   );
@@ -125,13 +125,13 @@ function PaginatedTable({ details }: { details: OrderDailyDetail[] }) {
               <TableHead className="text-center whitespace-nowrap px-2">天</TableHead>
               <TableHead className="text-right whitespace-nowrap px-2">本金释放</TableHead>
               <TableHead className="text-right whitespace-nowrap px-2">利息释放</TableHead>
-              <TableHead className="text-right whitespace-nowrap px-2">日释放AF</TableHead>
-              <TableHead className="text-right whitespace-nowrap px-2">AF价格</TableHead>
-              <TableHead className="text-right whitespace-nowrap px-2">累计释放AF</TableHead>
+              <TableHead className="text-right whitespace-nowrap px-2">日释放MS</TableHead>
+              <TableHead className="text-right whitespace-nowrap px-2">MS价格</TableHead>
+              <TableHead className="text-right whitespace-nowrap px-2">累计释放MS</TableHead>
               <TableHead className="text-right whitespace-nowrap px-2">系统AF</TableHead>
               <TableHead className="text-right whitespace-nowrap px-2">交易金</TableHead>
               <TableHead className="text-right whitespace-nowrap px-2">外汇收益</TableHead>
-              <TableHead className="text-right whitespace-nowrap px-2">提取AF</TableHead>
+              <TableHead className="text-right whitespace-nowrap px-2">提取MS</TableHead>
               <TableHead className="text-right whitespace-nowrap px-2">提取费用</TableHead>
             </TableRow>
           </TableHeader>
@@ -149,13 +149,13 @@ function PaginatedTable({ details }: { details: OrderDailyDetail[] }) {
                     <TableCell className="text-center px-2 font-medium">{row.day}</TableCell>
                     <TableCell className="text-right px-2 tabular-nums">{formatCurrency(row.principalRelease)}</TableCell>
                     <TableCell className="text-right px-2 tabular-nums">{formatCurrency(row.interestRelease)}</TableCell>
-                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.dailyAfRelease, 4)}</TableCell>
-                    <TableCell className="text-right px-2 tabular-nums">${row.afPrice.toFixed(4)}</TableCell>
-                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.cumAfReleased, 2)}</TableCell>
-                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.afInSystem, 2)}</TableCell>
+                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.dailyMsRelease, 4)}</TableCell>
+                    <TableCell className="text-right px-2 tabular-nums">${row.msPrice.toFixed(4)}</TableCell>
+                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.cumMsReleased, 2)}</TableCell>
+                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.msInSystem, 2)}</TableCell>
                     <TableCell className="text-right px-2 tabular-nums">{formatCurrency(row.tradingCapital)}</TableCell>
                     <TableCell className="text-right px-2 tabular-nums text-green-500">{formatCurrency(row.forexIncome)}</TableCell>
-                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.withdrawnAf, 2)}</TableCell>
+                    <TableCell className="text-right px-2 tabular-nums">{formatNumber(row.withdrawnMs, 2)}</TableCell>
                     <TableCell className="text-right px-2 tabular-nums text-red-400">{formatCurrency(row.withdrawFee)}</TableCell>
                   </TableRow>
                 ))}
@@ -169,13 +169,13 @@ function PaginatedTable({ details }: { details: OrderDailyDetail[] }) {
                   </TableCell>
                   <TableCell className="text-right px-2 tabular-nums">{formatCurrency(summary.principalRelease)}</TableCell>
                   <TableCell className="text-right px-2 tabular-nums">{formatCurrency(summary.interestRelease)}</TableCell>
-                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.dailyAfRelease, 4)}</TableCell>
+                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.dailyMsRelease, 4)}</TableCell>
                   <TableCell className="text-right px-2 tabular-nums">-</TableCell>
-                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.cumAfReleased, 2)}</TableCell>
-                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.afInSystem, 2)}</TableCell>
+                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.cumMsReleased, 2)}</TableCell>
+                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.msInSystem, 2)}</TableCell>
                   <TableCell className="text-right px-2 tabular-nums">{formatCurrency(summary.tradingCapital)}</TableCell>
                   <TableCell className="text-right px-2 tabular-nums text-green-500">{formatCurrency(summary.forexIncome)}</TableCell>
-                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.withdrawnAf, 2)}</TableCell>
+                  <TableCell className="text-right px-2 tabular-nums">{formatNumber(summary.withdrawnMs, 2)}</TableCell>
                   <TableCell className="text-right px-2 tabular-nums text-red-400">{formatCurrency(summary.withdrawFee)}</TableCell>
                 </TableRow>
               </>

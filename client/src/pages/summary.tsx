@@ -26,8 +26,8 @@ export default function SummaryPage() {
   const simulationResults = simulationData?.dailySimulations || [];
 
   const currentAfPrice = simulationResults.length > 0
-    ? simulationResults[simulationResults.length - 1].afPrice
-    : aamPool.afPrice;
+    ? simulationResults[simulationResults.length - 1].msPrice
+    : aamPool.msPrice;
 
   const orderProgress = useMemo(() => {
     if (stakingOrders.length === 0) return [];
@@ -46,9 +46,9 @@ export default function SummaryPage() {
 
       for (const d of details) {
         totalForexIncome += d.forexIncome;
-        totalWithdrawnAf += d.withdrawnAf;
+        totalWithdrawnAf += d.withdrawnMs;
         totalWithdrawFee += d.withdrawFee;
-        lastAfInSystem = d.afInSystem;
+        lastAfInSystem = d.msInSystem;
       }
 
       const afSellingRevenue = totalWithdrawnAf * currentAfPrice;
@@ -65,7 +65,7 @@ export default function SummaryPage() {
         startDay: order.startDay ?? 0,
         forexIncome: totalForexIncome,
         afSellingRevenue,
-        withdrawnAf: totalWithdrawnAf,
+        withdrawnMs: totalWithdrawnAf,
         retainedAf: lastAfInSystem,
         retainedAfValue,
         withdrawFee: totalWithdrawFee,
@@ -87,10 +87,10 @@ export default function SummaryPage() {
         retainedAfValue: acc.retainedAfValue + o.retainedAfValue,
         forexIncome: acc.forexIncome + o.forexIncome,
         withdrawFee: acc.withdrawFee + o.withdrawFee,
-        withdrawnAf: acc.withdrawnAf + o.withdrawnAf,
+        withdrawnMs: acc.withdrawnMs + o.withdrawnMs,
         retainedAf: acc.retainedAf + o.retainedAf,
       }),
-      { totalInvestment: 0, afSellingRevenue: 0, retainedAfValue: 0, forexIncome: 0, withdrawFee: 0, withdrawnAf: 0, retainedAf: 0 }
+      { totalInvestment: 0, afSellingRevenue: 0, retainedAfValue: 0, forexIncome: 0, withdrawFee: 0, withdrawnMs: 0, retainedAf: 0 }
     );
     const totalRevenue = totals.afSellingRevenue + totals.retainedAfValue + totals.forexIncome;
     const netProfit = totalRevenue - totals.totalInvestment - totals.withdrawFee;
@@ -110,8 +110,8 @@ export default function SummaryPage() {
   const chartData = useMemo(() => {
     return comparisonResults.map(r => ({
       name: `${r.days}天`,
-      "AF套利收益": Number(r.afArbitrageRevenue.toFixed(2)),
-      "持有AF价值": Number(r.heldAfValue.toFixed(2)),
+      "MS套利收益": Number(r.msArbitrageRevenue.toFixed(2)),
+      "持有MS价值": Number(r.heldMsValue.toFixed(2)),
       "交易收益": Number(r.tradingProfit.toFixed(2)),
     }));
   }, [comparisonResults]);
@@ -126,7 +126,7 @@ export default function SummaryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">AF ${formatNumber(currentAfPrice, 4)}</Badge>
+          <Badge variant="outline">MS ${formatNumber(currentAfPrice, 4)}</Badge>
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
             {stakingOrders.length} 笔铸造订单
           </Badge>
@@ -241,13 +241,13 @@ export default function SummaryPage() {
                     <div className="text-center">
                       <p className="text-lg font-bold text-blue-500">{formatCurrency(grandTotals.afSellingRevenue)}</p>
                       <p className="text-xs text-muted-foreground">AF卖出收益</p>
-                      <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.withdrawnAf)} AF</p>
+                      <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.withdrawnMs)} MS</p>
                     </div>
                     <span className="text-muted-foreground">+</span>
                     <div className="text-center">
                       <p className="text-lg font-bold text-purple-500">{formatCurrency(grandTotals.retainedAfValue)}</p>
-                      <p className="text-xs text-muted-foreground">保留AF价值</p>
-                      <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.retainedAf)} AF</p>
+                      <p className="text-xs text-muted-foreground">保留MS价值</p>
+                      <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.retainedAf)} MS</p>
                     </div>
                     <span className="text-muted-foreground">+</span>
                     <div className="text-center">
@@ -277,12 +277,12 @@ export default function SummaryPage() {
                       <div className="p-2 rounded border text-center">
                         <p className="text-xs text-muted-foreground">AF卖出收益</p>
                         <p className="text-sm font-bold text-blue-500">{formatCurrency(grandTotals.afSellingRevenue)}</p>
-                        <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.withdrawnAf)} AF</p>
+                        <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.withdrawnMs)} MS</p>
                       </div>
                       <div className="p-2 rounded border text-center">
-                        <p className="text-xs text-muted-foreground">保留AF价值</p>
+                        <p className="text-xs text-muted-foreground">保留MS价值</p>
                         <p className="text-sm font-bold text-purple-500">{formatCurrency(grandTotals.retainedAfValue)}</p>
-                        <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.retainedAf)} AF</p>
+                        <p className="text-xs text-muted-foreground">{formatNumber(grandTotals.retainedAf)} MS</p>
                       </div>
                       <div className="p-2 rounded border text-center">
                         <p className="text-xs text-muted-foreground">外汇收益</p>
@@ -307,14 +307,14 @@ export default function SummaryPage() {
                         <DollarSign className="h-3 w-3" /> AF卖出收益
                       </p>
                       <p className="text-lg font-semibold text-blue-500">{formatCurrency(grandTotals.afSellingRevenue)}</p>
-                      <p className="text-xs text-muted-foreground">提取并卖出 {formatNumber(grandTotals.withdrawnAf)} AF</p>
+                      <p className="text-xs text-muted-foreground">提取并卖出 {formatNumber(grandTotals.withdrawnMs)} MS</p>
                     </div>
                     <div className="p-3 rounded-md border border-purple-500/20">
                       <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Coins className="h-3 w-3" /> 保留AF价值
+                        <Coins className="h-3 w-3" /> 保留MS价值
                       </p>
                       <p className="text-lg font-semibold text-purple-500">{formatCurrency(grandTotals.retainedAfValue)}</p>
-                      <p className="text-xs text-muted-foreground">系统内 {formatNumber(grandTotals.retainedAf)} AF</p>
+                      <p className="text-xs text-muted-foreground">系统内 {formatNumber(grandTotals.retainedAf)} MS</p>
                     </div>
                     <div className="p-3 rounded-md border border-green-500/20">
                       <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -349,7 +349,7 @@ export default function SummaryPage() {
                           <TableHead>模式</TableHead>
                           <TableHead className="text-right">投入(USDC)</TableHead>
                           <TableHead className="text-right">AF卖出(USDC)</TableHead>
-                          <TableHead className="text-right">保留AF价值</TableHead>
+                          <TableHead className="text-right">保留MS价值</TableHead>
                           <TableHead className="text-right">外汇收益</TableHead>
                           <TableHead className="text-right">手续费</TableHead>
                           <TableHead className="text-right">净利润</TableHead>
@@ -374,11 +374,11 @@ export default function SummaryPage() {
                             <TableCell className="text-right">{formatCurrency(o.amount)}</TableCell>
                             <TableCell className="text-right text-blue-500">
                               {formatCurrency(o.afSellingRevenue)}
-                              <p className="text-xs text-muted-foreground">{formatNumber(o.withdrawnAf)} AF</p>
+                              <p className="text-xs text-muted-foreground">{formatNumber(o.withdrawnMs)} MS</p>
                             </TableCell>
                             <TableCell className="text-right text-purple-500">
                               {formatCurrency(o.retainedAfValue)}
-                              <p className="text-xs text-muted-foreground">{formatNumber(o.retainedAf)} AF</p>
+                              <p className="text-xs text-muted-foreground">{formatNumber(o.retainedAf)} MS</p>
                             </TableCell>
                             <TableCell className="text-right text-green-500">{formatCurrency(o.forexIncome)}</TableCell>
                             <TableCell className="text-right text-red-500">{formatCurrency(o.withdrawFee)}</TableCell>
@@ -461,7 +461,7 @@ export default function SummaryPage() {
                   <p className="text-xs text-muted-foreground">最低 100 USDC，100 的整数倍</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>AF 提现比例: {compareWithdrawPct}%</Label>
+                  <Label>MS 提现比例: {compareWithdrawPct}%</Label>
                   <Slider
                     value={[compareWithdrawPct]}
                     onValueChange={([v]) => setCompareWithdrawPct(v)}
@@ -532,9 +532,9 @@ export default function SummaryPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>期限</TableHead>
-                          <TableHead className="text-right">总释放AF</TableHead>
-                          <TableHead className="text-right">AF套利(USDC)</TableHead>
-                          <TableHead className="text-right">持有AF价值</TableHead>
+                          <TableHead className="text-right">总释放MS</TableHead>
+                          <TableHead className="text-right">MS套利(USDC)</TableHead>
+                          <TableHead className="text-right">持有MS价值</TableHead>
                           <TableHead className="text-right">交易收益</TableHead>
                           <TableHead className="text-right">总收益</TableHead>
                           <TableHead className="text-right">净利润</TableHead>
@@ -550,9 +550,9 @@ export default function SummaryPage() {
                             <TableCell>
                               <Badge variant="outline">{r.days}天</Badge>
                             </TableCell>
-                            <TableCell className="text-right">{formatNumber(r.totalAfReleased)}</TableCell>
-                            <TableCell className="text-right text-blue-500">{formatCurrency(r.afArbitrageRevenue)}</TableCell>
-                            <TableCell className="text-right text-purple-500">{formatCurrency(r.heldAfValue)}</TableCell>
+                            <TableCell className="text-right">{formatNumber(r.totalMsReleased)}</TableCell>
+                            <TableCell className="text-right text-blue-500">{formatCurrency(r.msArbitrageRevenue)}</TableCell>
+                            <TableCell className="text-right text-purple-500">{formatCurrency(r.heldMsValue)}</TableCell>
                             <TableCell className="text-right text-green-500">{formatCurrency(r.tradingProfit)}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(r.totalRevenue)}</TableCell>
                             <TableCell className={`text-right font-medium ${r.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -589,8 +589,8 @@ export default function SummaryPage() {
                         <YAxis tickFormatter={(v: number) => `$${v}`} />
                         <RechartsTooltip formatter={(value: number) => formatCurrency(value)} />
                         <Legend />
-                        <Bar dataKey="AF套利收益" stackId="a" fill="#3b82f6" />
-                        <Bar dataKey="持有AF价值" stackId="a" fill="#a855f7" />
+                        <Bar dataKey="MS套利收益" stackId="a" fill="#3b82f6" />
+                        <Bar dataKey="持有MS价值" stackId="a" fill="#a855f7" />
                         <Bar dataKey="交易收益" stackId="a" fill="#22c55e" />
                       </BarChart>
                     </ResponsiveContainer>
@@ -613,7 +613,7 @@ export default function SummaryPage() {
                           <TableHead className="text-right">释放倍数</TableHead>
                           <TableHead className="text-right">手续费率</TableHead>
                           <TableHead className="text-right">利润分成</TableHead>
-                          <TableHead className="text-right">最终AF价格</TableHead>
+                          <TableHead className="text-right">最终MS价格</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

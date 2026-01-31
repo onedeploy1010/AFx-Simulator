@@ -29,7 +29,7 @@ export default function TradingPage() {
         const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
         if (!daysConfig) return null;
 
-        // Derive trading capital from simulation results (stored order.afKeptInSystem is always 0)
+        // Derive trading capital from simulation results (stored order.msKeptInSystem is always 0)
         const details = orderDailyDetails.get(order.id);
         const lastDetail = details && details.length > 0 ? details[details.length - 1] : null;
         const tradingCapital = lastDetail ? lastDetail.tradingCapital : 0;
@@ -93,7 +93,7 @@ export default function TradingPage() {
         ...simulation,
       };
     }).filter(Boolean);
-  }, [stakingOrders, config, aamPool.afPrice, orderDailyDetails]);
+  }, [stakingOrders, config, aamPool.msPrice, orderDailyDetails]);
 
   const totals = useMemo(() => {
     if (orderSimulations.length === 0) return null;
@@ -146,7 +146,7 @@ export default function TradingPage() {
   ] : [];
 
   const fundFlow = totals ? [
-    { name: "LP 池 (USDC+AF)", value: totals.period.lpContribution, color: "hsl(var(--chart-1))" },
+    { name: "LP 池 (USDC+MS)", value: totals.period.lpContribution, color: "hsl(var(--chart-1))" },
     { name: "外汇储备金", value: totals.period.reserveAmount, color: "hsl(var(--chart-3))" },
   ] : [];
 
@@ -231,22 +231,22 @@ export default function TradingPage() {
         const poolCapital = totalDeposit * (config.depositTradingPoolRatio / 100);
         const dailyPoolProfit = poolCapital * (config.poolDailyProfitRate / 100);
 
-        // Get per-order unclaimed AF from simulation details
+        // Get per-order unclaimed MS from simulation details
         const lastDetails = new Map<string, number>();
-        let totalUnclaimedAf = 0;
+        let totalUnclaimedMs = 0;
         for (const order of stakingOrders) {
           const details = orderDailyDetails.get(order.id);
           const lastDetail = details && details.length > 0 ? details[details.length - 1] : null;
-          const unclaimed = lastDetail ? lastDetail.afInSystem : 0;
+          const unclaimed = lastDetail ? lastDetail.msInSystem : 0;
           lastDetails.set(order.id, unclaimed);
-          totalUnclaimedAf += unclaimed;
+          totalUnclaimedMs += unclaimed;
         }
 
         return (
           <Card className="border-purple-500/30 bg-purple-500/5">
             <CardHeader>
               <CardTitle className="text-lg">交易分红池总览</CardTitle>
-              <CardDescription>全网入金进入量化交易池，按AF持有权重分润</CardDescription>
+              <CardDescription>全网入金进入量化交易池，按MS持有权重分润</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
@@ -269,18 +269,18 @@ export default function TradingPage() {
                   <p className="text-base md:text-lg font-semibold text-green-500">{formatCurrency(dailyPoolProfit)}</p>
                 </div>
                 <div className="p-2.5 md:p-3 rounded-md border">
-                  <p className="text-xs md:text-sm text-muted-foreground">未提取AF</p>
-                  <p className="text-base md:text-lg font-semibold">{formatNumber(totalUnclaimedAf)} AF</p>
+                  <p className="text-xs md:text-sm text-muted-foreground">未提取MS</p>
+                  <p className="text-base md:text-lg font-semibold">{formatNumber(totalUnclaimedMs)} MS</p>
                 </div>
               </div>
               {/* Per-order weight and share */}
-              {totalUnclaimedAf > 0 && (
+              {totalUnclaimedMs > 0 && (
                 <div className="mt-4 space-y-2">
                   <p className="text-sm font-medium">个人权重与分润</p>
                   <div className="space-y-2">
                     {stakingOrders.map((order) => {
                       const unclaimed = lastDetails.get(order.id) || 0;
-                      const weight = totalUnclaimedAf > 0 ? unclaimed / totalUnclaimedAf : 0;
+                      const weight = totalUnclaimedMs > 0 ? unclaimed / totalUnclaimedMs : 0;
                       const share = dailyPoolProfit * weight;
                       return (
                         <div key={order.id} className="p-2 rounded border text-sm space-y-2 md:space-y-0">
@@ -291,7 +291,7 @@ export default function TradingPage() {
                               <span className="text-muted-foreground">{formatCurrency(order.amount)}</span>
                             </div>
                             <div className="flex items-center gap-4">
-                              <span className="text-muted-foreground">AF: {formatNumber(unclaimed)}</span>
+                              <span className="text-muted-foreground">MS: {formatNumber(unclaimed)}</span>
                               <span className="text-muted-foreground">权重: {(weight * 100).toFixed(1)}%</span>
                               <span className="font-medium text-green-500">日分润: {formatCurrency(share)}</span>
                             </div>
@@ -306,7 +306,7 @@ export default function TradingPage() {
                               <span className="font-medium text-green-500">{formatCurrency(share)}/天</span>
                             </div>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>持有 AF: {formatNumber(unclaimed)}</span>
+                              <span>持有 MS: {formatNumber(unclaimed)}</span>
                               <span>权重: {(weight * 100).toFixed(1)}%</span>
                             </div>
                           </div>
@@ -517,9 +517,9 @@ export default function TradingPage() {
                       <p className="text-xs text-muted-foreground">{config.lpPoolUsdcRatio}% 交易金</p>
                     </div>
                     <div className="p-3 rounded-md border">
-                      <p className="text-sm text-muted-foreground">LP 池 (AF)</p>
-                      <p className="text-lg font-semibold">{formatCurrency(totals.period.totalVolume * config.lpPoolAfRatio / 100)}</p>
-                      <p className="text-xs text-muted-foreground">{config.lpPoolAfRatio}% 交易金</p>
+                      <p className="text-sm text-muted-foreground">LP 池 (MS)</p>
+                      <p className="text-lg font-semibold">{formatCurrency(totals.period.totalVolume * config.lpPoolMsRatio / 100)}</p>
+                      <p className="text-xs text-muted-foreground">{config.lpPoolMsRatio}% 交易金</p>
                     </div>
                     <div className="p-3 rounded-md border">
                       <p className="text-sm text-muted-foreground">外汇储备金</p>

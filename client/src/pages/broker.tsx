@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfigStore } from "@/hooks/use-config";
 import { BROKER_LEVELS } from "@shared/schema";
 import {
-  calculateBrokerLayerAfIncome,
+  calculateBrokerLayerMsIncome,
   calculateBrokerDividendPool,
   calculateBrokerTradingDividend,
   calculateOrderDailyRelease,
@@ -36,8 +36,8 @@ export default function BrokerPage() {
 
   const hasOrders = stakingOrders.length > 0;
 
-  // ── AF released per layer from actual orders ─────────────────
-  const afReleasedPerLayer = useMemo(() => {
+  // ── MS released per layer from actual orders ─────────────────
+  const msReleasedPerLayer = useMemo(() => {
     const layers = new Array(20).fill(0);
     if (!hasOrders) {
       // Manual mode: uniform distribution
@@ -46,11 +46,11 @@ export default function BrokerPage() {
     }
     stakingOrders.forEach((order, i) => {
       const layerIdx = i % 20;
-      const dailyAf = calculateOrderDailyRelease(order, config, aamPool.afPrice);
+      const dailyAf = calculateOrderDailyRelease(order, config, aamPool.msPrice);
       layers[layerIdx] += dailyAf;
     });
     return layers;
-  }, [stakingOrders, config, aamPool.afPrice, hasOrders, manualAfPerLayer]);
+  }, [stakingOrders, config, aamPool.msPrice, hasOrders, manualAfPerLayer]);
 
   // ── Trading profit metrics from actual orders ────────────────
   const tradingMetrics = useMemo(() => {
@@ -68,7 +68,7 @@ export default function BrokerPage() {
     let totalGross = 0, totalFee = 0, totalUserProfit = 0;
     let weightedProfitShare = 0, totalAmount = 0;
     stakingOrders.forEach(order => {
-      const fp = calculateOrderDailyForexProfit(order, config, aamPool.afPrice);
+      const fp = calculateOrderDailyForexProfit(order, config, aamPool.msPrice);
       totalGross += fp.grossProfit;
       totalFee += fp.tradingFee;
       totalUserProfit += fp.userProfit;
@@ -92,12 +92,12 @@ export default function BrokerPage() {
       platformShare: remaining * 0.5,
       profitSharePercent: avgProfitShare,
     };
-  }, [stakingOrders, config, aamPool.afPrice, hasOrders, manualGrossProfit, manualTradingFee, manualProfitShare]);
+  }, [stakingOrders, config, aamPool.msPrice, hasOrders, manualGrossProfit, manualTradingFee, manualProfitShare]);
 
-  // ── Layer AF income calculation ──────────────────────────────
+  // ── Layer MS income calculation ──────────────────────────────
   const layerIncome = useMemo(() => {
-    return calculateBrokerLayerAfIncome(afReleasedPerLayer, selectedLevel, config);
-  }, [afReleasedPerLayer, selectedLevel, config]);
+    return calculateBrokerLayerMsIncome(msReleasedPerLayer, selectedLevel, config);
+  }, [msReleasedPerLayer, selectedLevel, config]);
 
   // ── Trading dividend calculation ─────────────────────────────
   const dividendResult = useMemo(() => {
@@ -109,21 +109,21 @@ export default function BrokerPage() {
     );
   }, [tradingMetrics.brokerPool, selectedLevel, subordinateLevel, config]);
 
-  const totalBrokerIncome = layerIncome.totalEarnings * aamPool.afPrice + dividendResult.earnings;
+  const totalBrokerIncome = layerIncome.totalEarnings * aamPool.msPrice + dividendResult.earnings;
 
   // ── V1-V6 comparison data ────────────────────────────────────
   const levelComparisonAf = useMemo(() => {
     return BROKER_LEVELS.map(level => {
-      const income = calculateBrokerLayerAfIncome(afReleasedPerLayer, level, config);
+      const income = calculateBrokerLayerMsIncome(msReleasedPerLayer, level, config);
       return {
         level,
         maxLayer: getMaxLayer(level, config),
         earnings: income.totalEarnings,
         compressed: income.compressedEarnings,
-        earningsUsdc: income.totalEarnings * aamPool.afPrice,
+        earningsUsdc: income.totalEarnings * aamPool.msPrice,
       };
     });
-  }, [afReleasedPerLayer, config, aamPool.afPrice]);
+  }, [msReleasedPerLayer, config, aamPool.msPrice]);
 
   const levelComparisonDividend = useMemo(() => {
     return BROKER_LEVELS.map((level, idx) => {
@@ -144,7 +144,7 @@ export default function BrokerPage() {
     });
   }, [tradingMetrics.brokerPool, config]);
 
-  // ── Bar chart data for layer AF ──────────────────────────────
+  // ── Bar chart data for layer MS ──────────────────────────────
   const layerChartData = layerIncome.layers.map(l => ({
     name: `L${l.layer}`,
     earnings: l.accessible ? l.earnings : 0,
@@ -157,7 +157,7 @@ export default function BrokerPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">经纪人系统</h1>
-          <p className="text-muted-foreground">AF层级收益 + 交易利润分红（级差制度）</p>
+          <p className="text-muted-foreground">MS层级收益 + 交易利润分红（级差制度）</p>
         </div>
         <Badge variant="outline" className="text-lg px-4 py-2">{selectedLevel}</Badge>
       </div>
@@ -210,7 +210,7 @@ export default function BrokerPage() {
           {!hasOrders && (
             <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-md border border-dashed">
               <div className="space-y-2">
-                <Label>每层AF释放量</Label>
+                <Label>每层MS释放量</Label>
                 <Input
                   type="number"
                   value={manualAfPerLayer}
@@ -257,13 +257,13 @@ export default function BrokerPage() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Layers className="h-4 w-4" />
-              层级AF收益
+              层级MS收益
             </CardDescription>
-            <CardTitle className="text-lg md:text-2xl">{formatNumber(layerIncome.totalEarnings)} AF</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">{formatNumber(layerIncome.totalEarnings)} MS</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              ≈ {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)}
+              ≈ {formatCurrency(layerIncome.totalEarnings * aamPool.msPrice)}
             </p>
           </CardContent>
         </Card>
@@ -291,7 +291,7 @@ export default function BrokerPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              AF收益 + 交易分红
+              MS收益 + 交易分红
             </p>
           </CardContent>
         </Card>
@@ -299,13 +299,13 @@ export default function BrokerPage() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              AF 价格
+              MS 价格
             </CardDescription>
-            <CardTitle className="text-lg md:text-2xl">${aamPool.afPrice.toFixed(4)}</CardTitle>
+            <CardTitle className="text-lg md:text-2xl">${aamPool.msPrice.toFixed(4)}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              紧缩收益: {formatNumber(layerIncome.compressedEarnings)} AF
+              紧缩收益: {formatNumber(layerIncome.compressedEarnings)} MS
             </p>
           </CardContent>
         </Card>
@@ -314,16 +314,16 @@ export default function BrokerPage() {
       {/* Main Tabs */}
       <Tabs defaultValue="layer-af" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="layer-af" className="text-xs sm:text-sm px-1 sm:px-3">层级AF收益</TabsTrigger>
+          <TabsTrigger value="layer-af" className="text-xs sm:text-sm px-1 sm:px-3">层级MS收益</TabsTrigger>
           <TabsTrigger value="trading-dividend" className="text-xs sm:text-sm px-1 sm:px-3">交易分红</TabsTrigger>
           <TabsTrigger value="estimation" className="text-xs sm:text-sm px-1 sm:px-3">综合估算</TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Layer AF Income */}
+        {/* Tab 1: Layer MS Income */}
         <TabsContent value="layer-af" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">20层AF释放收益明细 ({selectedLevel})</CardTitle>
+              <CardTitle className="text-lg">20层MS释放收益明细 ({selectedLevel})</CardTitle>
               <CardDescription>
                 {selectedLevel} 可访问第 1-{getMaxLayer(selectedLevel, config)} 层，
                 超出层级收益紧缩给上级
@@ -336,9 +336,9 @@ export default function BrokerPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[60px]">层级</TableHead>
-                      <TableHead className="text-right">AF释放量</TableHead>
+                      <TableHead className="text-right">MS释放量</TableHead>
                       <TableHead className="text-right">费率</TableHead>
-                      <TableHead className="text-right">收益 (AF)</TableHead>
+                      <TableHead className="text-right">收益 (MS)</TableHead>
                       <TableHead className="text-right">收益 (USDC)</TableHead>
                       <TableHead className="text-center">可访问</TableHead>
                     </TableRow>
@@ -349,13 +349,13 @@ export default function BrokerPage() {
                         <TableCell>
                           <Badge variant={l.accessible ? "default" : "outline"}>L{l.layer}</Badge>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(l.afReleased)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumber(l.msReleased)}</TableCell>
                         <TableCell className="text-right">{l.rate}%</TableCell>
                         <TableCell className="text-right tabular-nums">
                           {l.accessible ? formatNumber(l.earnings) : <span className="text-muted-foreground">({formatNumber(l.earnings)})</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {l.accessible ? formatCurrency(l.earnings * aamPool.afPrice) : <span className="text-muted-foreground">紧缩</span>}
+                          {l.accessible ? formatCurrency(l.earnings * aamPool.msPrice) : <span className="text-muted-foreground">紧缩</span>}
                         </TableCell>
                         <TableCell className="text-center">
                           {l.accessible ? "✓" : "—"}
@@ -364,10 +364,10 @@ export default function BrokerPage() {
                     ))}
                     <TableRow className="bg-muted font-semibold">
                       <TableCell>合计</TableCell>
-                      <TableCell className="text-right">{formatNumber(afReleasedPerLayer.reduce((a, b) => a + b, 0))}</TableCell>
+                      <TableCell className="text-right">{formatNumber(msReleasedPerLayer.reduce((a, b) => a + b, 0))}</TableCell>
                       <TableCell />
                       <TableCell className="text-right text-green-500">{formatNumber(layerIncome.totalEarnings)}</TableCell>
-                      <TableCell className="text-right text-green-500">{formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)}</TableCell>
+                      <TableCell className="text-right text-green-500">{formatCurrency(layerIncome.totalEarnings * aamPool.msPrice)}</TableCell>
                       <TableCell />
                     </TableRow>
                   </TableBody>
@@ -387,9 +387,9 @@ export default function BrokerPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>释放: {formatNumber(l.afReleased)} AF</span>
+                      <span>释放: {formatNumber(l.msReleased)} MS</span>
                       <span className={l.accessible ? "text-green-500 font-medium" : "text-muted-foreground"}>
-                        {l.accessible ? formatCurrency(l.earnings * aamPool.afPrice) : `(${formatNumber(l.earnings)} AF)`}
+                        {l.accessible ? formatCurrency(l.earnings * aamPool.msPrice) : `(${formatNumber(l.earnings)} MS)`}
                       </span>
                     </div>
                   </div>
@@ -397,7 +397,7 @@ export default function BrokerPage() {
                 <div className="p-2.5 rounded-md bg-muted text-sm font-semibold">
                   <div className="flex items-center justify-between">
                     <span>合计</span>
-                    <span className="text-green-500">{formatNumber(layerIncome.totalEarnings)} AF ≈ {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)}</span>
+                    <span className="text-green-500">{formatNumber(layerIncome.totalEarnings)} MS ≈ {formatCurrency(layerIncome.totalEarnings * aamPool.msPrice)}</span>
                   </div>
                 </div>
               </div>
@@ -423,7 +423,7 @@ export default function BrokerPage() {
                         borderRadius: '6px',
                       }}
                       formatter={(value: number, name: string) => [
-                        formatNumber(value) + ' AF',
+                        formatNumber(value) + ' MS',
                         name === 'earnings' ? '可得收益' : '紧缩收益'
                       ]}
                     />
@@ -437,8 +437,8 @@ export default function BrokerPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">V1-V6 层级AF收益对比</CardTitle>
-              <CardDescription>各等级可获得的层级AF收益</CardDescription>
+              <CardTitle className="text-lg">V1-V6 层级MS收益对比</CardTitle>
+              <CardDescription>各等级可获得的层级MS收益</CardDescription>
             </CardHeader>
             <CardContent>
               {/* Desktop: table */}
@@ -448,7 +448,7 @@ export default function BrokerPage() {
                     <TableRow>
                       <TableHead>等级</TableHead>
                       <TableHead className="text-right">可访问层级</TableHead>
-                      <TableHead className="text-right">AF收益</TableHead>
+                      <TableHead className="text-right">MS收益</TableHead>
                       <TableHead className="text-right">USDC价值</TableHead>
                       <TableHead className="text-right">紧缩收益</TableHead>
                     </TableRow>
@@ -480,7 +480,7 @@ export default function BrokerPage() {
                       <span className="font-medium text-green-500">{formatCurrency(lc.earningsUsdc)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>AF: {formatNumber(lc.earnings)}</span>
+                      <span>MS: {formatNumber(lc.earnings)}</span>
                       <span>紧缩: {formatNumber(lc.compressed)}</span>
                     </div>
                   </div>
@@ -643,7 +643,7 @@ export default function BrokerPage() {
               <CardDescription>
                 {hasOrders
                   ? `${stakingOrders.length} 笔实际订单依次分布在20层（第1笔→第1层，第2笔→第2层...）`
-                  : "手动输入模式：每层均匀分配AF释放量"
+                  : "手动输入模式：每层均匀分配MS释放量"
                 }
               </CardDescription>
             </CardHeader>
@@ -658,14 +658,14 @@ export default function BrokerPage() {
                         <TableHead>层级</TableHead>
                         <TableHead>订单</TableHead>
                         <TableHead className="text-right">铸造金额</TableHead>
-                        <TableHead className="text-right">日AF释放</TableHead>
-                        <TableHead className="text-right">AF价值 (USDC)</TableHead>
+                        <TableHead className="text-right">日MS释放</TableHead>
+                        <TableHead className="text-right">MS价值 (USDC)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {Array.from({ length: 20 }, (_, i) => {
                         const layerOrders = stakingOrders.filter((_, idx) => idx % 20 === i);
-                        const layerAf = afReleasedPerLayer[i];
+                        const layerAf = msReleasedPerLayer[i];
                         return (
                           <TableRow key={i}>
                             <TableCell>
@@ -683,7 +683,7 @@ export default function BrokerPage() {
                               {formatCurrency(layerOrders.reduce((s, o) => s + o.amount, 0))}
                             </TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(layerAf, 4)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{formatCurrency(layerAf * aamPool.afPrice)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{formatCurrency(layerAf * aamPool.msPrice)}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -694,7 +694,7 @@ export default function BrokerPage() {
                 <div className="md:hidden space-y-2 max-h-[400px] overflow-auto">
                   {Array.from({ length: 20 }, (_, i) => {
                     const layerOrders = stakingOrders.filter((_, idx) => idx % 20 === i);
-                    const layerAf = afReleasedPerLayer[i];
+                    const layerAf = msReleasedPerLayer[i];
                     return (
                       <div key={i} className="p-2.5 rounded-md border text-sm">
                         <div className="flex items-center justify-between mb-1">
@@ -712,8 +712,8 @@ export default function BrokerPage() {
                           <span className="text-xs font-medium">{formatCurrency(layerOrders.reduce((s, o) => s + o.amount, 0))}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>AF: {formatNumber(layerAf, 4)}</span>
-                          <span>{formatCurrency(layerAf * aamPool.afPrice)}</span>
+                          <span>MS: {formatNumber(layerAf, 4)}</span>
+                          <span>{formatCurrency(layerAf * aamPool.msPrice)}</span>
                         </div>
                       </div>
                     );
@@ -724,7 +724,7 @@ export default function BrokerPage() {
                 <div className="p-4 rounded-md bg-muted text-center text-muted-foreground">
                   <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
                   <p>暂无订单，使用手动输入模式</p>
-                  <p className="text-xs mt-1">每层统一释放 {formatNumber(manualAfPerLayer)} AF</p>
+                  <p className="text-xs mt-1">每层统一释放 {formatNumber(manualAfPerLayer)} MS</p>
                 </div>
               )}
             </CardContent>
@@ -733,7 +733,7 @@ export default function BrokerPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">综合收益汇总 ({selectedLevel})</CardTitle>
-              <CardDescription>AF释放层级收益 + 交易利润分红 合计</CardDescription>
+              <CardDescription>MS释放层级收益 + 交易利润分红 合计</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -741,10 +741,10 @@ export default function BrokerPage() {
                   <div className="p-4 rounded-md border">
                     <div className="flex items-center gap-2 mb-2">
                       <Layers className="h-5 w-5 text-blue-500" />
-                      <span className="font-medium">AF层级收益</span>
+                      <span className="font-medium">MS层级收益</span>
                     </div>
-                    <p className="text-lg md:text-2xl font-bold">{formatNumber(layerIncome.totalEarnings)} AF</p>
-                    <p className="text-sm text-muted-foreground">≈ {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)}</p>
+                    <p className="text-lg md:text-2xl font-bold">{formatNumber(layerIncome.totalEarnings)} MS</p>
+                    <p className="text-sm text-muted-foreground">≈ {formatCurrency(layerIncome.totalEarnings * aamPool.msPrice)}</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       可访问 {getMaxLayer(selectedLevel, config)} 层 / 20层
                     </p>
@@ -769,7 +769,7 @@ export default function BrokerPage() {
                     </div>
                     <p className="text-lg md:text-2xl font-bold text-green-500">{formatCurrency(totalBrokerIncome)}</p>
                     <p className="text-sm text-muted-foreground">
-                      AF价值 {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)} + 分红 {formatCurrency(dividendResult.earnings)}
+                      MS价值 {formatCurrency(layerIncome.totalEarnings * aamPool.msPrice)} + 分红 {formatCurrency(dividendResult.earnings)}
                     </p>
                   </div>
                 </div>
@@ -781,7 +781,7 @@ export default function BrokerPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>等级</TableHead>
-                        <TableHead className="text-right">AF层级收益</TableHead>
+                        <TableHead className="text-right">MS层级收益</TableHead>
                         <TableHead className="text-right">交易分红</TableHead>
                         <TableHead className="text-right">日总收益</TableHead>
                       </TableRow>
@@ -818,7 +818,7 @@ export default function BrokerPage() {
                           <span className="font-medium text-green-500">{formatCurrency(total)}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>AF: {formatCurrency(afIncome.earningsUsdc)}</span>
+                          <span>MS: {formatCurrency(afIncome.earningsUsdc)}</span>
                           <span>分红: {formatCurrency(divIncome.earnings)}</span>
                         </div>
                       </div>

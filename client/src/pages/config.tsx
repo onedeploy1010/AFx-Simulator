@@ -36,7 +36,7 @@ export default function ConfigPage() {
   const depositLpRatio = config.depositLpRatio ?? 30;
   const depositBuybackRatio = config.depositBuybackRatio ?? 20;
   const initialLpUsdc = config.initialLpUsdc ?? 1000000;
-  const initialLpAf = config.initialLpAf ?? 10000000;
+  const initialLpMs = config.initialLpMs ?? 10000000;
   const depositReserveRatio = calculateDepositReserveRatio(config);
 
   return (
@@ -104,7 +104,7 @@ export default function ConfigPage() {
                   <p className="text-sm text-muted-foreground">
                     {config.simulationMode === 'package'
                       ? "配套模式：使用预设配套档位（100-10000 USDC），每日释放本金+利息"
-                      : "天数模式：自定义金额和天数（30/60/90/180天），按倍数释放AF"}
+                      : "天数模式：自定义金额和天数（30/60/90/180天），按倍数释放MS"}
                   </p>
                 </div>
               </CardContent>
@@ -112,29 +112,29 @@ export default function ConfigPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">AF 释放模式</CardTitle>
-                <CardDescription>选择 AF 释放的计算方式</CardDescription>
+                <CardTitle className="text-lg">MS 释放模式</CardTitle>
+                <CardDescription>选择 MS 释放的计算方式</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Select
-                  value={config.afReleaseMode}
+                  value={config.msReleaseMode}
                   onValueChange={(value: 'gold_standard' | 'coin_standard') =>
-                    setConfig({ afReleaseMode: value })
+                    setConfig({ msReleaseMode: value })
                   }
                 >
                   <SelectTrigger data-testid="select-release-mode">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gold_standard">金本位（按 USDC 价值释放 AF）</SelectItem>
-                    <SelectItem value="coin_standard">币本位（按固定 AF 数量释放）</SelectItem>
+                    <SelectItem value="gold_standard">金本位（按 USDC 价值释放 MS）</SelectItem>
+                    <SelectItem value="coin_standard">币本位（按固定 MS 数量释放）</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="p-3 rounded-md bg-muted">
                   <p className="text-sm text-muted-foreground">
-                    {config.afReleaseMode === 'gold_standard'
-                      ? "金本位模式：根据 USDC 价值计算释放的 AF 数量，币价越高释放越少"
-                      : "币本位模式：每日释放固定数量的 AF，不受币价影响"}
+                    {config.msReleaseMode === 'gold_standard'
+                      ? "金本位模式：根据 USDC 价值计算释放的 MS 数量，币价越高释放越少"
+                      : "币本位模式：每日释放固定数量的 MS，不受币价影响"}
                   </p>
                 </div>
               </CardContent>
@@ -142,12 +142,12 @@ export default function ConfigPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">AF 释放周期</CardTitle>
+                <CardTitle className="text-lg">MS 释放周期</CardTitle>
                 <CardDescription>全局释放周期设置</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="staking-enabled">启用 AF 释放周期</Label>
+                  <Label htmlFor="staking-enabled">启用 MS 释放周期</Label>
                   <Switch
                     id="staking-enabled"
                     checked={config.stakingEnabled}
@@ -194,7 +194,7 @@ export default function ConfigPage() {
                   <p className="text-sm text-muted-foreground">
                     {(config.tradingMode ?? 'individual') === 'individual'
                       ? "个人交易模式：每个订单独立计算交易收益"
-                      : "交易分红模式：全网入金进入量化交易池，按AF持有权重分润"}
+                      : "交易分红模式：全网入金进入量化交易池，按MS持有权重分润"}
                   </p>
                 </div>
                 {(config.tradingMode ?? 'individual') === 'dividend_pool' && (
@@ -256,11 +256,11 @@ export default function ConfigPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>初始 AF</Label>
+                  <Label>初始 MS</Label>
                   <Input
                     type="number"
-                    value={initialLpAf}
-                    onChange={(e) => setConfig({ initialLpAf: parseFloat(e.target.value) || 0 })}
+                    value={initialLpMs}
+                    onChange={(e) => setConfig({ initialLpMs: parseFloat(e.target.value) || 0 })}
                     min={0}
                     data-testid="input-initial-af"
                   />
@@ -298,7 +298,7 @@ export default function ConfigPage() {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label>回购 AF 比例: {depositBuybackRatio}%</Label>
+                  <Label>回购 MS 比例: {depositBuybackRatio}%</Label>
                 </div>
                 <Slider
                   value={[depositBuybackRatio]}
@@ -318,7 +318,7 @@ export default function ConfigPage() {
                   <span className="font-medium">{depositLpRatio}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>回购 AF</span>
+                  <span>回购 MS</span>
                   <span className="font-medium">{depositBuybackRatio}%</span>
                 </div>
                 <div className="flex justify-between text-sm border-t pt-1">
@@ -366,20 +366,20 @@ export default function ConfigPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">提现销毁比例</CardTitle>
-                <CardDescription>提现 AF 时的销毁比例</CardDescription>
+                <CardDescription>提现 MS 时的销毁比例</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>销毁比例 (%): {config.afExitBurnRatio}%</Label>
+                  <Label>销毁比例 (%): {config.msExitBurnRatio}%</Label>
                   <Slider
-                    value={[config.afExitBurnRatio]}
-                    onValueChange={([value]) => setConfig({ afExitBurnRatio: value })}
+                    value={[config.msExitBurnRatio]}
+                    onValueChange={([value]) => setConfig({ msExitBurnRatio: value })}
                     min={0}
                     max={50}
                     step={1}
                     data-testid="slider-burn-ratio"
                   />
-                  <p className="text-xs text-muted-foreground">提现 AF 时销毁的比例</p>
+                  <p className="text-xs text-muted-foreground">提现 MS 时销毁的比例</p>
                 </div>
               </CardContent>
             </Card>
@@ -538,7 +538,7 @@ export default function ConfigPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">倍数封顶模式</CardTitle>
-                <CardDescription>天数模式下释放AF达到本金×倍数时停止</CardDescription>
+                <CardDescription>天数模式下释放MS达到本金×倍数时停止</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -553,7 +553,7 @@ export default function ConfigPage() {
                 {(config.multiplierCapEnabled ?? true) && (
                   <div className="p-3 rounded-md bg-muted">
                     <p className="text-sm text-muted-foreground">
-                      当释放AF价值达到本金×倍数时停止释放。封顶后若用户未提取AF，继续产生交易收益。
+                      当释放MS价值达到本金×倍数时停止释放。封顶后若用户未提取MS，继续产生交易收益。
                     </p>
                   </div>
                 )}
@@ -660,18 +660,18 @@ export default function ConfigPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>LP 池 AF (%)</Label>
+                  <Label>LP 池 MS (%)</Label>
                   <Input
                     type="number"
-                    value={config.lpPoolAfRatio}
-                    onChange={(e) => setConfig({ lpPoolAfRatio: parseFloat(e.target.value) || 0 })}
+                    value={config.lpPoolMsRatio}
+                    onChange={(e) => setConfig({ lpPoolMsRatio: parseFloat(e.target.value) || 0 })}
                     min={0}
                     max={100}
                     data-testid="input-lp-af"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>回购 AF (%)</Label>
+                  <Label>回购 MS (%)</Label>
                   <Input
                     type="number"
                     value={config.buybackRatio}
@@ -695,8 +695,8 @@ export default function ConfigPage() {
               </div>
               <div className="mt-4 p-3 rounded-md bg-muted">
                 <p className="text-sm text-muted-foreground">
-                  总计: {config.lpPoolUsdcRatio + config.lpPoolAfRatio + config.buybackRatio + config.reserveRatio}%
-                  (LP USDC {config.lpPoolUsdcRatio}% + LP AF {config.lpPoolAfRatio}% + 回购 {config.buybackRatio}% + 储备 {config.reserveRatio}%)
+                  总计: {config.lpPoolUsdcRatio + config.lpPoolMsRatio + config.buybackRatio + config.reserveRatio}%
+                  (LP USDC {config.lpPoolUsdcRatio}% + LP MS {config.lpPoolMsRatio}% + 回购 {config.buybackRatio}% + 储备 {config.reserveRatio}%)
                 </p>
               </div>
             </CardContent>
@@ -707,7 +707,7 @@ export default function ConfigPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">层级费率设置</CardTitle>
-              <CardDescription>20层体系中各层的AF释放收益费率</CardDescription>
+              <CardDescription>20层体系中各层的MS释放收益费率</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">

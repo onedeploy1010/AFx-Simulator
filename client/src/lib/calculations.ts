@@ -1,4 +1,4 @@
-import type { AFxConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress, PackageConfig, DaysConfig, OrderDailyDetail } from "@shared/schema";
+import type { NMSConfig, StakingOrder, TradingSimulation, AAMPool, DailySimulation, OrderReleaseProgress, PackageConfig, DaysConfig, OrderDailyDetail } from "@shared/schema";
 
 // Calculate trading fee rate based on staking amount
 export function calculateTradingFeeRate(
@@ -14,11 +14,11 @@ export function calculateTradingFeeRate(
   return maxRate - (maxRate - minRate) * ratio;
 }
 
-// Calculate daily AF release
+// Calculate daily MS release
 export function calculateDailyAFRelease(
   order: StakingOrder,
-  config: AFxConfig,
-  afPrice: number
+  config: NMSConfig,
+  msPrice: number
 ): number {
   const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
   if (!packageConfig) return 0;
@@ -29,90 +29,90 @@ export function calculateDailyAFRelease(
   const stakingDays = order.daysStaked;
   const releaseMultiplier = packageConfig.releaseMultiplier;
 
-  if (config.afReleaseMode === 'coin_standard') {
-    // Coin standard: totalAF = (amount / afPrice) × multiplier, dailyAF = totalAF / stakingDays
-    const coinQuantity = order.amount / afPrice;
-    const totalAf = coinQuantity * releaseMultiplier;
-    return totalAf / stakingDays;
+  if (config.msReleaseMode === 'coin_standard') {
+    // Coin standard: totalAF = (amount / msPrice) × multiplier, dailyAF = totalAF / stakingDays
+    const coinQuantity = order.amount / msPrice;
+    const totalMs = coinQuantity * releaseMultiplier;
+    return totalMs / stakingDays;
   } else {
-    // Gold standard: totalUSDC = amount × multiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / afPrice
+    // Gold standard: totalUSDC = amount × multiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / msPrice
     const totalUsdc = order.amount * releaseMultiplier;
     const dailyUsdc = totalUsdc / stakingDays;
-    return dailyUsdc / afPrice;
+    return dailyUsdc / msPrice;
   }
 }
 
 // Calculate linear daily release (principal + interest) for package mode
-// Coin standard: totalAF = (amount / afPrice) × releaseMultiplier, dailyAF = totalAF / stakingDays
-// Gold standard: totalUSDC = amount × releaseMultiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / afPrice
+// Coin standard: totalAF = (amount / msPrice) × releaseMultiplier, dailyAF = totalAF / stakingDays
+// Gold standard: totalUSDC = amount × releaseMultiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / msPrice
 export function calculateLinearDailyRelease(
   order: StakingOrder,
-  config: AFxConfig,
-  afPrice: number
-): { dailyAf: number; principalUsdc: number; interestUsdc: number } {
+  config: NMSConfig,
+  msPrice: number
+): { dailyMs: number; principalUsdc: number; interestUsdc: number } {
   const packageConfig = config.packageConfigs.find(p => p.tier === order.packageTier);
-  if (!packageConfig || !config.stakingEnabled) return { dailyAf: 0, principalUsdc: 0, interestUsdc: 0 };
+  if (!packageConfig || !config.stakingEnabled) return { dailyMs: 0, principalUsdc: 0, interestUsdc: 0 };
 
   const stakingDays = order.daysStaked;
   const releaseMultiplier = packageConfig.releaseMultiplier;
 
-  if (config.afReleaseMode === 'coin_standard') {
-    // Coin standard: totalAF = (amount / afPrice) × multiplier, dailyAF = totalAF / stakingDays
-    const coinQuantity = order.amount / afPrice;
-    const totalAf = coinQuantity * releaseMultiplier;
-    const dailyAf = totalAf / stakingDays;
+  if (config.msReleaseMode === 'coin_standard') {
+    // Coin standard: totalAF = (amount / msPrice) × multiplier, dailyAF = totalAF / stakingDays
+    const coinQuantity = order.amount / msPrice;
+    const totalMs = coinQuantity * releaseMultiplier;
+    const dailyMs = totalMs / stakingDays;
     // Principal component (USDC equivalent)
     const principalUsdc = order.amount / stakingDays;
     // Interest component = total daily value minus principal
-    const interestUsdc = Math.max(0, (dailyAf * afPrice) - principalUsdc);
-    return { dailyAf, principalUsdc, interestUsdc };
+    const interestUsdc = Math.max(0, (dailyMs * msPrice) - principalUsdc);
+    return { dailyMs, principalUsdc, interestUsdc };
   } else {
-    // Gold standard: totalUSDC = amount × multiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / afPrice
+    // Gold standard: totalUSDC = amount × multiplier, dailyUSDC = totalUSDC / stakingDays, dailyAF = dailyUSDC / msPrice
     const totalUsdc = order.amount * releaseMultiplier;
     const dailyUsdc = totalUsdc / stakingDays;
-    const dailyAf = dailyUsdc / afPrice;
+    const dailyMs = dailyUsdc / msPrice;
     // Principal component
     const principalUsdc = order.amount / stakingDays;
     // Interest component = total daily USDC minus principal
     const interestUsdc = Math.max(0, dailyUsdc - principalUsdc);
-    return { dailyAf, principalUsdc, interestUsdc };
+    return { dailyMs, principalUsdc, interestUsdc };
   }
 }
 
 // Calculate days mode daily release
-// afAtCurrentPrice = amount / afPrice
-// totalAfToRelease = afAtCurrentPrice * releaseMultiplier
-// dailyAf = totalAfToRelease / durationDays
+// afAtCurrentPrice = amount / msPrice
+// totalMsToRelease = afAtCurrentPrice * releaseMultiplier
+// dailyMs = totalMsToRelease / durationDays
 export function calculateDaysModeDailyRelease(
   order: StakingOrder,
   daysConfig: DaysConfig,
-  afPrice: number
-): { dailyAf: number; totalAfToRelease: number } {
-  const afAtCurrentPrice = order.amount / afPrice;
-  const totalAfToRelease = afAtCurrentPrice * daysConfig.releaseMultiplier;
-  const dailyAf = totalAfToRelease / (order.durationDays || daysConfig.days);
-  return { dailyAf, totalAfToRelease };
+  msPrice: number
+): { dailyMs: number; totalMsToRelease: number } {
+  const afAtCurrentPrice = order.amount / msPrice;
+  const totalMsToRelease = afAtCurrentPrice * daysConfig.releaseMultiplier;
+  const dailyMs = totalMsToRelease / (order.durationDays || daysConfig.days);
+  return { dailyMs, totalMsToRelease };
 }
 
 // Check if multiplier cap has been reached (days mode)
 export function isMultiplierCapReached(
-  cumAfReleased: number,
-  afPrice: number,
+  cumMsReleased: number,
+  msPrice: number,
   principal: number,
   releaseMultiplier: number
 ): boolean {
-  return cumAfReleased * afPrice >= principal * releaseMultiplier;
+  return cumMsReleased * msPrice >= principal * releaseMultiplier;
 }
 
 // Calculate dividend pool profit for a single order
 export function calculateDividendPoolProfit(
-  personalUnclaimedAf: number,
-  totalUnclaimedAf: number,
-  totalAfReleased: number,
+  personalUnclaimedMs: number,
+  totalUnclaimedMs: number,
+  totalMsReleased: number,
   totalAfxMultiplier: number,
   principal: number,
   totalDepositAmount: number,
-  config: AFxConfig,
+  config: NMSConfig,
   daysConfig: { tradingFeeRate: number; profitSharePercent: number }
 ): {
   margin: number;
@@ -125,13 +125,13 @@ export function calculateDividendPoolProfit(
   brokerProfit: number;
   tradingFee: number;
 } {
-  // Margin = (personalUnclaimedAf / totalAfxMultiplier) × principal × marginMultiplier
+  // Margin = (personalUnclaimedMs / totalAfxMultiplier) × principal × marginMultiplier
   const margin = totalAfxMultiplier > 0
-    ? (personalUnclaimedAf / totalAfxMultiplier) * principal * config.dividendMarginMultiplier
+    ? (personalUnclaimedMs / totalAfxMultiplier) * principal * config.dividendMarginMultiplier
     : 0;
 
-  // Weight = personalUnclaimedAf / totalUnclaimedAf
-  const weight = totalUnclaimedAf > 0 ? personalUnclaimedAf / totalUnclaimedAf : 0;
+  // Weight = personalUnclaimedMs / totalUnclaimedMs
+  const weight = totalUnclaimedMs > 0 ? personalUnclaimedMs / totalUnclaimedMs : 0;
 
   // Trading pool capital = totalDepositAmount × (depositTradingPoolRatio / 100)
   const poolCapital = totalDepositAmount * (config.depositTradingPoolRatio / 100);
@@ -163,44 +163,44 @@ export function calculateDividendPoolProfit(
   };
 }
 
-// Calculate AF-based trading capital
-// Trading capital = un-withdrawn AF value in USDC (afKeptInSystem * afPrice)
+// Calculate MS-based trading capital
+// Trading capital = un-withdrawn MS value in USDC (msKeptInSystem * msPrice)
 export function calculateAfBasedTradingCapital(
-  afKeptInSystem: number,
-  afPrice: number
+  msKeptInSystem: number,
+  msPrice: number
 ): number {
-  return afKeptInSystem * afPrice;
+  return msKeptInSystem * msPrice;
 }
 
-// Calculate AF exit distribution based on per-order withdrawal ratio
-// withdrawPercent: 0 = all AF held (= trading capital), 100 = all AF withdrawn (burn + sell)
-// Held AF automatically becomes trading capital (held AF * price = trading capital value)
+// Calculate MS exit distribution based on per-order withdrawal ratio
+// withdrawPercent: 0 = all MS held (= trading capital), 100 = all MS withdrawn (burn + sell)
+// Held MS automatically becomes trading capital (held MS * price = trading capital value)
 export function calculateAFExitDistribution(
-  afReleased: number,
-  _afPrice: number,
+  msReleased: number,
+  _msPrice: number,
   withdrawPercent: number,
-  config: AFxConfig
+  config: NMSConfig
 ): {
-  toWithdrawAf: number; // AF withdrawn (before burn)
-  toHoldAf: number; // AF held in system = trading capital
-  toBurnAf: number; // AF burned (from withdraw portion)
-  toSecondaryMarketAf: number; // Net AF to secondary market after burn
+  toWithdrawMs: number; // MS withdrawn (before burn)
+  toHoldMs: number; // MS held in system = trading capital
+  toBurnMs: number; // MS burned (from withdraw portion)
+  toSecondaryMarketMs: number; // Net MS to secondary market after burn
 } {
   const wp = Math.max(0, Math.min(100, withdrawPercent));
 
   // Two-way split: withdraw vs hold
-  const toWithdrawAf = afReleased * (wp / 100);
-  const toHoldAf = afReleased * ((100 - wp) / 100);
+  const toWithdrawMs = msReleased * (wp / 100);
+  const toHoldMs = msReleased * ((100 - wp) / 100);
 
-  // From withdrawn portion, some gets burned (afExitBurnRatio, default 20%)
-  const toBurnAf = toWithdrawAf * (config.afExitBurnRatio / 100);
-  const toSecondaryMarketAf = toWithdrawAf - toBurnAf;
+  // From withdrawn portion, some gets burned (msExitBurnRatio, default 20%)
+  const toBurnMs = toWithdrawMs * (config.msExitBurnRatio / 100);
+  const toSecondaryMarketMs = toWithdrawMs - toBurnMs;
 
   return {
-    toWithdrawAf,
-    toHoldAf,
-    toBurnAf,
-    toSecondaryMarketAf,
+    toWithdrawMs,
+    toHoldMs,
+    toBurnMs,
+    toSecondaryMarketMs,
   };
 }
 
@@ -212,7 +212,7 @@ export function calculateTradingSimulation(
   profitRate: number,
   tradingFeeRate: number,
   userProfitSharePercent: number,
-  config: AFxConfig
+  config: NMSConfig
 ): TradingSimulation {
   // Calculate gross profit from trading
   const grossProfit = tradingCapital * profitRate;
@@ -232,11 +232,11 @@ export function calculateTradingSimulation(
   const brokerProfit = remainingProfit * 0.5;
   
   // Fund flow split - applied to trading capital (transaction funds) per requirement
-  // 30% USDC + 30% AF -> LP pool (AAM)
-  // 20% -> buyback AF
+  // 30% USDC + 30% MS -> LP pool (AAM)
+  // 20% -> buyback MS
   // 50% -> forex reserve
   const lpContributionUsdc = tradingCapital * (config.lpPoolUsdcRatio / 100);
-  const lpContributionAf = tradingCapital * (config.lpPoolAfRatio / 100);
+  const lpContributionAf = tradingCapital * (config.lpPoolMsRatio / 100);
   const lpContribution = lpContributionUsdc + lpContributionAf;
   const buybackAmount = tradingCapital * (config.buybackRatio / 100);
   const reserveAmount = tradingCapital * (config.reserveRatio / 100);
@@ -258,18 +258,18 @@ export function calculateTradingSimulationLegacy(
   tradeVolume: number,
   feeRate: number,
   userProfitSharePercent: number,
-  config: AFxConfig
+  config: NMSConfig
 ): TradingSimulation {
   // Assume 5% profit rate as default for simulation
   return calculateTradingSimulation(tradeVolume, 0.05, feeRate, userProfitSharePercent, config);
 }
 
 // ============================================================
-// Broker system — AF layer income + trading dividend
+// Broker system — MS layer income + trading dividend
 // ============================================================
 
 /** Get the layer rate (%) for a given layer number from config */
-export function getLayerRate(layer: number, config: AFxConfig): number {
+export function getLayerRate(layer: number, config: NMSConfig): number {
   for (const lr of config.brokerLayerRates) {
     if (layer >= lr.fromLayer && layer <= lr.toLayer) return lr.ratePercent;
   }
@@ -277,33 +277,33 @@ export function getLayerRate(layer: number, config: AFxConfig): number {
 }
 
 /** Get the max accessible layer for a broker level */
-export function getMaxLayer(brokerLevel: string, config: AFxConfig): number {
+export function getMaxLayer(brokerLevel: string, config: NMSConfig): number {
   const entry = config.brokerLevelAccess.find(e => e.level === brokerLevel);
   return entry?.maxLayer ?? 0;
 }
 
 /**
- * Calculate broker AF layer income for a 20-layer tree.
- * Each layer has AF released; the broker earns `ratePercent%` of each accessible layer.
+ * Calculate broker MS layer income for a 20-layer tree.
+ * Each layer has MS released; the broker earns `ratePercent%` of each accessible layer.
  * Inaccessible layers' earnings are "compressed" (passed up to higher-level brokers).
  */
-export function calculateBrokerLayerAfIncome(
-  afReleasedPerLayer: number[],
+export function calculateBrokerLayerMsIncome(
+  msReleasedPerLayer: number[],
   brokerLevel: string,
-  config: AFxConfig
+  config: NMSConfig
 ): {
-  layers: { layer: number; afReleased: number; rate: number; earnings: number; accessible: boolean }[];
+  layers: { layer: number; msReleased: number; rate: number; earnings: number; accessible: boolean }[];
   totalEarnings: number;
   compressedEarnings: number;
 } {
   const maxLayer = getMaxLayer(brokerLevel, config);
-  const layers: { layer: number; afReleased: number; rate: number; earnings: number; accessible: boolean }[] = [];
+  const layers: { layer: number; msReleased: number; rate: number; earnings: number; accessible: boolean }[] = [];
   let totalEarnings = 0;
   let compressedEarnings = 0;
 
   for (let i = 0; i < 20; i++) {
     const layer = i + 1;
-    const af = afReleasedPerLayer[i] || 0;
+    const af = msReleasedPerLayer[i] || 0;
     const rate = getLayerRate(layer, config);
     const earnings = af * (rate / 100);
     const accessible = layer <= maxLayer;
@@ -314,7 +314,7 @@ export function calculateBrokerLayerAfIncome(
       compressedEarnings += earnings;
     }
 
-    layers.push({ layer, afReleased: af, rate, earnings, accessible });
+    layers.push({ layer, msReleased: af, rate, earnings, accessible });
   }
 
   return { layers, totalEarnings, compressedEarnings };
@@ -347,7 +347,7 @@ export function calculateBrokerTradingDividend(
   brokerDividendPool: number,
   brokerLevel: string,
   subordinateLevel: string | null,
-  config: AFxConfig
+  config: NMSConfig
 ): { brokerRate: number; subRate: number; differentialRate: number; earnings: number } {
   const levels = config.brokerLevelAccess.map(e => e.level);
   const brokerIdx = levels.indexOf(brokerLevel);
@@ -362,55 +362,55 @@ export function calculateBrokerTradingDividend(
 }
 
 // Simulate AAM pool state after operations
-// Handles: LP addition, AF sell to pool (secondary market), buyback, burn
+// Handles: LP addition, MS sell to pool (secondary market), buyback, burn
 export function simulateAAMPool(
   currentPool: AAMPool,
   usdcAddedToLp: number, // USDC added to LP pool
-  afAddedToLp: number, // AF added to LP pool (for LP ratio)
-  afSoldToPool: number, // AF sold to pool (secondary market exit, increases AF, decreases USDC)
-  burnAf: number, // AF burned (direct AF units)
-  buybackUsdc: number = 0 // USDC used to buy AF from pool (price UP)
+  msAddedToLp: number, // MS added to LP pool (for LP ratio)
+  msSoldToPool: number, // MS sold to pool (secondary market exit, increases MS, decreases USDC)
+  burnMs: number, // MS burned (direct MS units)
+  buybackUsdc: number = 0 // USDC used to buy MS from pool (price UP)
 ): AAMPool {
   let newPool = { ...currentPool };
 
-  // Step 1: Add liquidity (both USDC and AF in ratio) - price stays same
-  if (usdcAddedToLp > 0 || afAddedToLp > 0) {
+  // Step 1: Add liquidity (both USDC and MS in ratio) - price stays same
+  if (usdcAddedToLp > 0 || msAddedToLp > 0) {
     newPool.usdcBalance += usdcAddedToLp;
-    newPool.afBalance += afAddedToLp;
+    newPool.msBalance += msAddedToLp;
   }
 
-  // Step 2: AF sold to pool (secondary market exit)
-  // AF enters pool, USDC exits -> price DECREASES
-  if (afSoldToPool > 0) {
-    const usdcReceived = afSoldToPool * newPool.afPrice;
+  // Step 2: MS sold to pool (secondary market exit)
+  // MS enters pool, USDC exits -> price DECREASES
+  if (msSoldToPool > 0) {
+    const usdcReceived = msSoldToPool * newPool.msPrice;
     const maxUsdcWithdraw = Math.max(0, newPool.usdcBalance - 1);
     const actualUsdcOut = Math.min(usdcReceived, maxUsdcWithdraw);
-    const actualAfIn = actualUsdcOut / newPool.afPrice;
+    const actualAfIn = actualUsdcOut / newPool.msPrice;
 
-    newPool.afBalance += actualAfIn;
+    newPool.msBalance += actualAfIn;
     newPool.usdcBalance -= actualUsdcOut;
   }
 
-  // Step 3: Buyback AF (USDC enters pool, AF exits -> price INCREASES)
-  if (buybackUsdc > 0 && newPool.afBalance > 1 && newPool.afPrice > 0) {
-    const maxAfCanBuy = Math.max(0, newPool.afBalance - 1);
-    const afWantToBuy = buybackUsdc / newPool.afPrice;
+  // Step 3: Buyback MS (USDC enters pool, MS exits -> price INCREASES)
+  if (buybackUsdc > 0 && newPool.msBalance > 1 && newPool.msPrice > 0) {
+    const maxAfCanBuy = Math.max(0, newPool.msBalance - 1);
+    const afWantToBuy = buybackUsdc / newPool.msPrice;
     const afBought = Math.min(afWantToBuy, maxAfCanBuy);
     if (afBought > 0) {
-      const actualUsdc = afBought * newPool.afPrice;
+      const actualUsdc = afBought * newPool.msPrice;
       newPool.usdcBalance += actualUsdc;
-      newPool.afBalance -= afBought;
+      newPool.msBalance -= afBought;
       newPool.totalBuyback += actualUsdc;
     }
   }
 
-  // Step 4: Burn AF (removed from supply, not from pool)
-  newPool.totalBurn += burnAf;
+  // Step 4: Burn MS (removed from supply, not from pool)
+  newPool.totalBurn += burnMs;
 
   // Recalculate price
-  newPool.afBalance = Math.max(1, newPool.afBalance);
-  newPool.afPrice = newPool.usdcBalance / newPool.afBalance;
-  newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.afBalance);
+  newPool.msBalance = Math.max(1, newPool.msBalance);
+  newPool.msPrice = newPool.usdcBalance / newPool.msBalance;
+  newPool.lpTokens = Math.sqrt(newPool.usdcBalance * newPool.msBalance);
 
   return newPool;
 }
@@ -425,7 +425,7 @@ export interface SimulationResult {
 // Supports both package mode and days mode orders
 export function runSimulation(
   orders: StakingOrder[],
-  config: AFxConfig,
+  config: NMSConfig,
   days: number,
   initialPool: AAMPool
 ): DailySimulation[] {
@@ -436,7 +436,7 @@ export function runSimulation(
 // Run full simulation returning both daily summaries and per-order details
 export function runSimulationWithDetails(
   orders: StakingOrder[],
-  config: AFxConfig,
+  config: NMSConfig,
   days: number,
   initialPool: AAMPool
 ): SimulationResult {
@@ -445,14 +445,14 @@ export function runSimulationWithDetails(
   let currentPool = { ...initialPool };
 
   // Initialize per-order tracking state
-  const orderState = new Map<string, { cumAfReleased: number; afKeptInSystem: number; afWithdrawn: number }>();
+  const orderState = new Map<string, { cumMsReleased: number; msKeptInSystem: number; msWithdrawn: number }>();
   for (const order of orders) {
-    orderState.set(order.id, { cumAfReleased: 0, afKeptInSystem: 0, afWithdrawn: 0 });
+    orderState.set(order.id, { cumMsReleased: 0, msKeptInSystem: 0, msWithdrawn: 0 });
     orderDailyDetails.set(order.id, []);
   }
 
   for (let day = 1; day <= days; day++) {
-    let totalAfReleased = 0;
+    let totalMsReleased = 0;
     let totalUserProfit = 0;
     let totalPlatformProfit = 0;
     let totalBrokerProfit = 0;
@@ -475,10 +475,10 @@ export function runSimulationWithDetails(
       if (effectiveDay < 1) {
         orderDailyDetails.get(order.id)?.push({
           day, orderId: order.id,
-          principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
-          afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
-          afInSystem: state.afKeptInSystem, tradingCapital: 0,
-          forexIncome: 0, withdrawnAf: 0, withdrawFee: 0,
+          principalRelease: 0, interestRelease: 0, dailyMsRelease: 0,
+          msPrice: currentPool.msPrice, cumMsReleased: state.cumMsReleased,
+          msInSystem: state.msKeptInSystem, tradingCapital: 0,
+          forexIncome: 0, withdrawnMs: 0, withdrawFee: 0,
         });
         continue;
       }
@@ -493,12 +493,12 @@ export function runSimulationWithDetails(
 
         // Check if multiplier cap already reached
         const alreadyCapped = config.multiplierCapEnabled &&
-          isMultiplierCapReached(state.cumAfReleased, currentPool.afPrice, order.amount, daysConfig.releaseMultiplier);
+          isMultiplierCapReached(state.cumMsReleased, currentPool.msPrice, order.amount, daysConfig.releaseMultiplier);
 
         // Check if release period has passed OR already capped
         if (effectiveDay > durationDays || alreadyCapped) {
-          // Even after cap/completion, if AF kept in system, continue trading income
-          const tradingCapital = calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice);
+          // Even after cap/completion, if MS kept in system, continue trading income
+          const tradingCapital = calculateAfBasedTradingCapital(state.msKeptInSystem, currentPool.msPrice);
           const canTrade = effectiveDay > config.releaseStartsTradingDays;
           let forexIncome = 0;
 
@@ -521,53 +521,53 @@ export function runSimulationWithDetails(
             totalTradingFee += tradingSim.tradingFee;
             totalBuybackUsdc += tradingSim.buybackAmount;
             totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
-            totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+            totalLpContributionAf += dailyTradingVolume * (config.lpPoolMsRatio / 100);
           }
 
           orderDailyDetails.get(order.id)?.push({
             day, orderId: order.id,
-            principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
-            afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
-            afInSystem: state.afKeptInSystem,
+            principalRelease: 0, interestRelease: 0, dailyMsRelease: 0,
+            msPrice: currentPool.msPrice, cumMsReleased: state.cumMsReleased,
+            msInSystem: state.msKeptInSystem,
             tradingCapital,
-            forexIncome, withdrawnAf: 0, withdrawFee: 0,
+            forexIncome, withdrawnMs: 0, withdrawFee: 0,
           });
           continue;
         }
 
-        // Calculate daily AF release for days mode
-        let { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, currentPool.afPrice);
+        // Calculate daily MS release for days mode
+        let { dailyMs } = calculateDaysModeDailyRelease(order, daysConfig, currentPool.msPrice);
 
         // Apply multiplier cap: truncate if this release would exceed cap
         if (config.multiplierCapEnabled) {
-          const currentValue = state.cumAfReleased * currentPool.afPrice;
-          const afterValue = (state.cumAfReleased + dailyAf) * currentPool.afPrice;
+          const currentValue = state.cumMsReleased * currentPool.msPrice;
+          const afterValue = (state.cumMsReleased + dailyMs) * currentPool.msPrice;
           if (afterValue >= capValue) {
             // Truncate: release only enough to reach cap exactly
             const remainingValue = Math.max(0, capValue - currentValue);
-            dailyAf = currentPool.afPrice > 0 ? remainingValue / currentPool.afPrice : 0;
+            dailyMs = currentPool.msPrice > 0 ? remainingValue / currentPool.msPrice : 0;
           }
         }
 
-        totalAfReleased += dailyAf;
-        state.cumAfReleased += dailyAf;
+        totalMsReleased += dailyMs;
+        state.cumMsReleased += dailyMs;
 
         // Apply exit distribution using per-order withdrawal ratio
-        const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, order.withdrawPercent ?? 60, config);
-        totalBurn += exitDist.toBurnAf;
-        totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
+        const exitDist = calculateAFExitDistribution(dailyMs, currentPool.msPrice, order.withdrawPercent ?? 60, config);
+        totalBurn += exitDist.toBurnMs;
+        totalToSecondaryMarket += exitDist.toSecondaryMarketMs;
 
-        // Track AF state: withdrawn vs held (held AF = trading capital)
-        state.afWithdrawn += exitDist.toWithdrawAf;
-        state.afKeptInSystem += exitDist.toHoldAf;
+        // Track MS state: withdrawn vs held (held MS = trading capital)
+        state.msWithdrawn += exitDist.toWithdrawMs;
+        state.msKeptInSystem += exitDist.toHoldMs;
 
-        // Calculate USDC revenue from selling withdrawn AF to LP pool
-        totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
+        // Calculate USDC revenue from selling withdrawn MS to LP pool
+        totalAfSellingRevenue += exitDist.toSecondaryMarketMs * currentPool.msPrice;
 
-        // Trading capital from un-withdrawn AF
-        const tradingCapital = calculateAfBasedTradingCapital(state.afKeptInSystem, currentPool.afPrice);
+        // Trading capital from un-withdrawn MS
+        const tradingCapital = calculateAfBasedTradingCapital(state.msKeptInSystem, currentPool.msPrice);
 
-        // If AF kept (not withdrawn), generate trading income (individual mode only here; dividend_pool handled in second pass)
+        // If MS kept (not withdrawn), generate trading income (individual mode only here; dividend_pool handled in second pass)
         const canTrade = effectiveDay > config.releaseStartsTradingDays;
         let forexIncome = 0;
         if (canTrade && tradingCapital > 0 && config.tradingMode === 'individual') {
@@ -589,20 +589,20 @@ export function runSimulationWithDetails(
           totalTradingFee += tradingSim.tradingFee;
           totalBuybackUsdc += tradingSim.buybackAmount;
           totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
-          totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+          totalLpContributionAf += dailyTradingVolume * (config.lpPoolMsRatio / 100);
         }
 
         orderDailyDetails.get(order.id)?.push({
           day, orderId: order.id,
           principalRelease: 0, // Days mode doesn't split principal/interest
           interestRelease: 0,
-          dailyAfRelease: dailyAf,
-          afPrice: currentPool.afPrice,
-          cumAfReleased: state.cumAfReleased,
-          afInSystem: state.afKeptInSystem,
+          dailyMsRelease: dailyMs,
+          msPrice: currentPool.msPrice,
+          cumMsReleased: state.cumMsReleased,
+          msInSystem: state.msKeptInSystem,
           tradingCapital,
           forexIncome,
-          withdrawnAf: exitDist.toWithdrawAf,
+          withdrawnMs: exitDist.toWithdrawMs,
           withdrawFee: 0,
         });
 
@@ -615,10 +615,10 @@ export function runSimulationWithDetails(
         if (!config.stakingEnabled || effectiveDay > order.daysStaked) {
           orderDailyDetails.get(order.id)?.push({
             day, orderId: order.id,
-            principalRelease: 0, interestRelease: 0, dailyAfRelease: 0,
-            afPrice: currentPool.afPrice, cumAfReleased: state.cumAfReleased,
-            afInSystem: state.afKeptInSystem, tradingCapital: 0,
-            forexIncome: 0, withdrawnAf: 0, withdrawFee: 0,
+            principalRelease: 0, interestRelease: 0, dailyMsRelease: 0,
+            msPrice: currentPool.msPrice, cumMsReleased: state.cumMsReleased,
+            msInSystem: state.msKeptInSystem, tradingCapital: 0,
+            forexIncome: 0, withdrawnMs: 0, withdrawFee: 0,
           });
           continue;
         }
@@ -626,22 +626,22 @@ export function runSimulationWithDetails(
         // Check if trading has started
         const canTrade = effectiveDay > config.releaseStartsTradingDays;
 
-        // Calculate AF release using linear release (principal + interest)
-        const { dailyAf, principalUsdc, interestUsdc } = calculateLinearDailyRelease(order, config, currentPool.afPrice);
-        totalAfReleased += dailyAf;
-        state.cumAfReleased += dailyAf;
+        // Calculate MS release using linear release (principal + interest)
+        const { dailyMs, principalUsdc, interestUsdc } = calculateLinearDailyRelease(order, config, currentPool.msPrice);
+        totalMsReleased += dailyMs;
+        state.cumMsReleased += dailyMs;
 
         // Calculate exit distribution using per-order withdrawal ratio
-        const exitDist = calculateAFExitDistribution(dailyAf, currentPool.afPrice, order.withdrawPercent ?? 60, config);
-        totalBurn += exitDist.toBurnAf;
-        totalToSecondaryMarket += exitDist.toSecondaryMarketAf;
+        const exitDist = calculateAFExitDistribution(dailyMs, currentPool.msPrice, order.withdrawPercent ?? 60, config);
+        totalBurn += exitDist.toBurnMs;
+        totalToSecondaryMarket += exitDist.toSecondaryMarketMs;
 
-        // Track AF state: withdrawn vs held (held AF = trading capital)
-        state.afWithdrawn += exitDist.toWithdrawAf;
-        state.afKeptInSystem += exitDist.toHoldAf;
+        // Track MS state: withdrawn vs held (held MS = trading capital)
+        state.msWithdrawn += exitDist.toWithdrawMs;
+        state.msKeptInSystem += exitDist.toHoldMs;
 
-        // Calculate USDC revenue from selling withdrawn AF to LP pool
-        totalAfSellingRevenue += exitDist.toSecondaryMarketAf * currentPool.afPrice;
+        // Calculate USDC revenue from selling withdrawn MS to LP pool
+        totalAfSellingRevenue += exitDist.toSecondaryMarketMs * currentPool.msPrice;
 
         // Trading simulation
         let forexIncome = 0;
@@ -665,43 +665,43 @@ export function runSimulationWithDetails(
           totalTradingFee += tradingSim.tradingFee;
           totalBuybackUsdc += tradingSim.buybackAmount;
           totalLpContributionUsdc += dailyTradingVolume * (config.lpPoolUsdcRatio / 100);
-          totalLpContributionAf += dailyTradingVolume * (config.lpPoolAfRatio / 100);
+          totalLpContributionAf += dailyTradingVolume * (config.lpPoolMsRatio / 100);
         }
 
         orderDailyDetails.get(order.id)?.push({
           day, orderId: order.id,
           principalRelease: principalUsdc,
           interestRelease: interestUsdc,
-          dailyAfRelease: dailyAf,
-          afPrice: currentPool.afPrice,
-          cumAfReleased: state.cumAfReleased,
-          afInSystem: state.afKeptInSystem,
+          dailyMsRelease: dailyMs,
+          msPrice: currentPool.msPrice,
+          cumMsReleased: state.cumMsReleased,
+          msInSystem: state.msKeptInSystem,
           tradingCapital: order.amount * config.tradingCapitalMultiplier,
           forexIncome,
-          withdrawnAf: exitDist.toWithdrawAf,
+          withdrawnMs: exitDist.toWithdrawMs,
           withdrawFee: 0,
         });
       }
     }
 
-    // Dividend pool mode: second pass to distribute pool profits by AF weight
+    // Dividend pool mode: second pass to distribute pool profits by MS weight
     if (config.tradingMode === 'dividend_pool') {
-      // Gather total unclaimed AF and total deposit across all days-mode orders
-      let totalUnclaimedAf = 0;
+      // Gather total unclaimed MS and total deposit across all days-mode orders
+      let totalUnclaimedMs = 0;
       const totalDepositAmount = orders.reduce((sum, o) => sum + o.amount, 0);
 
       for (const order of orders) {
         if ((order.mode || 'package') === 'days') {
           const st = orderState.get(order.id)!;
-          totalUnclaimedAf += st.afKeptInSystem;
+          totalUnclaimedMs += st.msKeptInSystem;
         }
       }
 
-      if (totalUnclaimedAf > 0) {
+      if (totalUnclaimedMs > 0) {
         for (const order of orders) {
           if ((order.mode || 'package') !== 'days') continue;
           const st = orderState.get(order.id)!;
-          if (st.afKeptInSystem <= 0) continue;
+          if (st.msKeptInSystem <= 0) continue;
 
           const startDay = order.startDay || 0;
           const effectiveDay = day - startDay;
@@ -711,9 +711,9 @@ export function runSimulationWithDetails(
           if (!daysConfig) continue;
 
           const dividendResult = calculateDividendPoolProfit(
-            st.afKeptInSystem,
-            totalUnclaimedAf,
-            st.cumAfReleased,
+            st.msKeptInSystem,
+            totalUnclaimedMs,
+            st.cumMsReleased,
             daysConfig.releaseMultiplier,
             order.amount,
             totalDepositAmount,
@@ -738,8 +738,8 @@ export function runSimulationWithDetails(
       }
     }
 
-    // Convert LP contribution AF from USDC value to AF units
-    const lpAfUnits = totalLpContributionAf / currentPool.afPrice;
+    // Convert LP contribution MS from USDC value to MS units
+    const lpAfUnits = totalLpContributionAf / currentPool.msPrice;
 
     // Update pool (including buyback from trading fund flow)
     currentPool = simulateAAMPool(
@@ -755,22 +755,22 @@ export function runSimulationWithDetails(
 
     results.push({
       day,
-      afReleased: totalAfReleased,
-      afPrice: currentPool.afPrice,
+      msReleased: totalMsReleased,
+      msPrice: currentPool.msPrice,
       userProfit: totalUserProfit,
       platformProfit: totalPlatformProfit,
       brokerProfit: totalBrokerProfit,
       tradingFeeConsumed: totalTradingFee,
       lpPoolSize: currentPool.lpTokens,
       poolUsdcBalance: currentPool.usdcBalance,
-      poolAfBalance: currentPool.afBalance,
-      poolTotalValue: currentPool.usdcBalance + currentPool.afBalance * currentPool.afPrice,
+      poolMsBalance: currentPool.msBalance,
+      poolTotalValue: currentPool.usdcBalance + currentPool.msBalance * currentPool.msPrice,
       buybackAmountUsdc: totalBuybackUsdc,
-      burnAmountAf: totalBurn,
-      toSecondaryMarketAf: totalToSecondaryMarket,
-      afSellingRevenueUsdc: totalAfSellingRevenue,
+      burnAmountMs: totalBurn,
+      toSecondaryMarketMs: totalToSecondaryMarket,
+      msSellingRevenueUsdc: totalAfSellingRevenue,
       lpContributionUsdc: totalLpContributionUsdc,
-      lpContributionAfValue: totalLpContributionAf,
+      lpContributionMsValue: totalLpContributionAf,
       reserveAmountUsdc: totalReserve,
     });
   }
@@ -782,54 +782,54 @@ export function runSimulationWithDetails(
 // Shared helper functions used across multiple pages
 // ============================================================
 
-// Calculate initial AF price from LP pool config
-export function calculateInitialPrice(config: AFxConfig): number {
-  return config.initialLpAf > 0 ? config.initialLpUsdc / config.initialLpAf : 0.1;
+// Calculate initial MS price from LP pool config
+export function calculateInitialPrice(config: NMSConfig): number {
+  return config.initialLpMs > 0 ? config.initialLpUsdc / config.initialLpMs : 0.1;
 }
 
 // Calculate deposit reserve ratio (remaining after LP + buyback)
-export function calculateDepositReserveRatio(config: AFxConfig): number {
+export function calculateDepositReserveRatio(config: NMSConfig): number {
   return Math.max(0, 100 - config.depositLpRatio - config.depositBuybackRatio);
 }
 
 // Calculate per-order trading capital based on current config
-export function calculateOrderTradingCapital(order: StakingOrder, config: AFxConfig, afPrice?: number): number {
+export function calculateOrderTradingCapital(order: StakingOrder, config: NMSConfig, msPrice?: number): number {
   const orderMode = order.mode || 'package';
-  if (orderMode === 'days' && afPrice && afPrice > 0) {
-    // Days mode: trading capital from un-withdrawn AF value
-    return calculateAfBasedTradingCapital(order.afKeptInSystem || 0, afPrice);
+  if (orderMode === 'days' && msPrice && msPrice > 0) {
+    // Days mode: trading capital from un-withdrawn MS value
+    return calculateAfBasedTradingCapital(order.msKeptInSystem || 0, msPrice);
   }
   return order.amount * config.tradingCapitalMultiplier;
 }
 
 // Calculate per-order daily trading volume
-export function calculateOrderDailyVolume(order: StakingOrder, config: AFxConfig): number {
+export function calculateOrderDailyVolume(order: StakingOrder, config: NMSConfig): number {
   return calculateOrderTradingCapital(order, config) * (config.dailyTradingVolumePercent / 100);
 }
 
-// Calculate per-order daily AF release amount (snapshot at given price)
-export function calculateOrderDailyRelease(order: StakingOrder, config: AFxConfig, afPrice: number): number {
+// Calculate per-order daily MS release amount (snapshot at given price)
+export function calculateOrderDailyRelease(order: StakingOrder, config: NMSConfig, msPrice: number): number {
   const orderMode = order.mode || 'package';
 
   if (orderMode === 'days') {
     const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
-    if (!daysConfig || afPrice <= 0) return 0;
-    const { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, afPrice);
-    return dailyAf;
+    if (!daysConfig || msPrice <= 0) return 0;
+    const { dailyMs } = calculateDaysModeDailyRelease(order, daysConfig, msPrice);
+    return dailyMs;
   }
 
   // Package mode - use linear release
   const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
   if (!pkg || !config.stakingEnabled) return 0;
-  const { dailyAf } = calculateLinearDailyRelease(order, config, afPrice);
-  return dailyAf;
+  const { dailyMs } = calculateLinearDailyRelease(order, config, msPrice);
+  return dailyMs;
 }
 
 // Calculate per-order daily forex profit breakdown
 export function calculateOrderDailyForexProfit(
   order: StakingOrder,
-  config: AFxConfig,
-  afPrice?: number
+  config: NMSConfig,
+  msPrice?: number
 ): {
   dailyVolume: number;
   grossProfit: number;
@@ -841,9 +841,9 @@ export function calculateOrderDailyForexProfit(
 
   if (orderMode === 'days') {
     const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
-    if (!daysConfig || !afPrice || afPrice <= 0) return { dailyVolume: 0, grossProfit: 0, tradingFee: 0, netProfit: 0, userProfit: 0 };
+    if (!daysConfig || !msPrice || msPrice <= 0) return { dailyVolume: 0, grossProfit: 0, tradingFee: 0, netProfit: 0, userProfit: 0 };
 
-    const tradingCapital = calculateAfBasedTradingCapital(order.afKeptInSystem || 0, afPrice);
+    const tradingCapital = calculateAfBasedTradingCapital(order.msKeptInSystem || 0, msPrice);
     const dailyVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
     const sim = calculateTradingSimulation(
       dailyVolume,
@@ -885,17 +885,17 @@ export function calculateOrderDailyForexProfit(
   };
 }
 
-// Calculate AF selling revenue from exit distribution over a period
-export function calculateOrderAfSellingRevenue(
-  totalAfReleased: number,
-  afPrice: number,
+// Calculate MS selling revenue from exit distribution over a period
+export function calculateOrderMsSellingRevenue(
+  totalMsReleased: number,
+  msPrice: number,
   withdrawPercent: number,
-  config: AFxConfig
+  config: NMSConfig
 ): { soldAf: number; revenueUsdc: number } {
-  const exitDist = calculateAFExitDistribution(totalAfReleased, afPrice, withdrawPercent, config);
+  const exitDist = calculateAFExitDistribution(totalMsReleased, msPrice, withdrawPercent, config);
   return {
-    soldAf: exitDist.toSecondaryMarketAf,
-    revenueUsdc: exitDist.toSecondaryMarketAf * afPrice,
+    soldAf: exitDist.toSecondaryMarketMs,
+    revenueUsdc: exitDist.toSecondaryMarketMs * msPrice,
   };
 }
 
@@ -908,15 +908,15 @@ export interface DurationComparisonResult {
   releaseMultiplier: number;
   tradingFeeRate: number;
   profitSharePercent: number;
-  // AF metrics
-  totalAfReleased: number;
+  // MS metrics
+  totalMsReleased: number;
   totalWithdrawnAf: number;
   totalHeldAf: number;
   // Revenue metrics (USDC)
-  afArbitrageRevenue: number;  // USDC from selling AF on secondary market
-  heldAfValue: number;         // USDC value of held AF (unrealized)
+  msArbitrageRevenue: number;  // USDC from selling MS on secondary market
+  heldMsValue: number;         // USDC value of held MS (unrealized)
   tradingProfit: number;       // Forex trading income
-  totalRevenue: number;        // afArbitrageRevenue + tradingProfit (realized only)
+  totalRevenue: number;        // msArbitrageRevenue + tradingProfit (realized only)
   netProfit: number;           // totalRevenue - investment amount
   // Efficiency metrics
   avgDailyIncome: number;      // totalRevenue / days
@@ -928,7 +928,7 @@ export interface DurationComparisonResult {
 export function simulateDurationComparison(
   amount: number,
   withdrawPercent: number,
-  config: AFxConfig,
+  config: NMSConfig,
   initialPool: AAMPool
 ): DurationComparisonResult[] {
   const results: DurationComparisonResult[] = [];
@@ -947,11 +947,11 @@ export function simulateDurationComparison(
       packageTier: 0,
       startDate: '',
       daysStaked: days,
-      afReleased: 0,
+      msReleased: 0,
       tradingCapital: 0,
-      totalAfToRelease: 0,
-      afWithdrawn: 0,
-      afKeptInSystem: 0,
+      totalMsToRelease: 0,
+      msWithdrawn: 0,
+      msKeptInSystem: 0,
     };
 
     // Run simulation with a fresh copy of initialPool for fair comparison
@@ -961,27 +961,27 @@ export function simulateDurationComparison(
     // Aggregate from daily details
     let totalWithdrawnAf = 0;
     let tradingProfit = 0;
-    let totalAfReleased = 0;
+    let totalMsReleased = 0;
     let totalHeldAf = 0;
 
     for (const d of details) {
-      totalWithdrawnAf += d.withdrawnAf;
+      totalWithdrawnAf += d.withdrawnMs;
       tradingProfit += d.forexIncome;
     }
 
     if (details.length > 0) {
       const last = details[details.length - 1];
-      totalAfReleased = last.cumAfReleased;
-      totalHeldAf = last.afInSystem;
+      totalMsReleased = last.cumMsReleased;
+      totalHeldAf = last.msInSystem;
     }
 
-    // Use initial AF price for all valuation (fair comparison across durations)
-    const baseAfPrice = initialPool.afPrice;
-    const afArbitrageRevenue = totalWithdrawnAf * (1 - config.afExitBurnRatio / 100) * baseAfPrice;
+    // Use initial MS price for all valuation (fair comparison across durations)
+    const baseAfPrice = initialPool.msPrice;
+    const msArbitrageRevenue = totalWithdrawnAf * (1 - config.msExitBurnRatio / 100) * baseAfPrice;
     const finalAfPrice = baseAfPrice;
 
-    const heldAfValue = totalHeldAf * baseAfPrice;
-    const totalRevenue = afArbitrageRevenue + tradingProfit; // realized only
+    const heldMsValue = totalHeldAf * baseAfPrice;
+    const totalRevenue = msArbitrageRevenue + tradingProfit; // realized only
     const netProfit = totalRevenue - amount;
     const avgDailyIncome = days > 0 ? totalRevenue / days : 0;
     const totalRoi = amount > 0 ? (netProfit / amount) * 100 : 0;
@@ -992,11 +992,11 @@ export function simulateDurationComparison(
       releaseMultiplier: dc.releaseMultiplier,
       tradingFeeRate: dc.tradingFeeRate,
       profitSharePercent: dc.profitSharePercent,
-      totalAfReleased,
+      totalMsReleased,
       totalWithdrawnAf,
       totalHeldAf,
-      afArbitrageRevenue,
-      heldAfValue,
+      msArbitrageRevenue,
+      heldMsValue,
       tradingProfit,
       totalRevenue,
       netProfit,
@@ -1031,9 +1031,9 @@ export function formatPercent(num: number): string {
 // Calculate per-order release progress for a given simulation day
 export function calculateOrderReleaseProgress(
   orders: StakingOrder[],
-  config: AFxConfig,
+  config: NMSConfig,
   currentDay: number,
-  afPrice: number
+  msPrice: number
 ): OrderReleaseProgress[] {
   return orders.map(order => {
     const orderMode = order.mode || 'package';
@@ -1049,15 +1049,15 @@ export function calculateOrderReleaseProgress(
       const progressPercent = durationDays > 0 ? (effectiveDay / durationDays) * 100 : 100;
       const isComplete = effectiveDayFromStart >= durationDays;
 
-      let dailyAfRelease = 0;
-      if (daysConfig && afPrice > 0) {
-        const { dailyAf } = calculateDaysModeDailyRelease(order, daysConfig, afPrice);
-        dailyAfRelease = dailyAf;
+      let dailyMsRelease = 0;
+      if (daysConfig && msPrice > 0) {
+        const { dailyMs } = calculateDaysModeDailyRelease(order, daysConfig, msPrice);
+        dailyMsRelease = dailyMs;
       }
 
-      const totalAfReleased = dailyAfRelease * effectiveDay;
-      const totalAfValue = totalAfReleased * afPrice;
-      const tradingCapital = calculateAfBasedTradingCapital(totalAfReleased, afPrice);
+      const totalMsReleased = dailyMsRelease * effectiveDay;
+      const totalMsValue = totalMsReleased * msPrice;
+      const tradingCapital = calculateAfBasedTradingCapital(totalMsReleased, msPrice);
 
       return {
         orderId: order.id,
@@ -1067,15 +1067,15 @@ export function calculateOrderReleaseProgress(
         currentDay: effectiveDay,
         daysRemaining,
         progressPercent,
-        totalAfReleased,
-        dailyAfRelease,
-        totalAfValue,
+        totalMsReleased,
+        dailyMsRelease,
+        totalMsValue,
         tradingCapital,
         isComplete,
         mode: 'days' as const,
         startDay,
-        afKeptInSystem: totalAfReleased,
-        afWithdrawn: 0,
+        msKeptInSystem: totalMsReleased,
+        msWithdrawn: 0,
       };
     }
 
@@ -1090,15 +1090,15 @@ export function calculateOrderReleaseProgress(
         currentDay: currentDay,
         daysRemaining: 0,
         progressPercent: 100,
-        totalAfReleased: 0,
-        dailyAfRelease: 0,
-        totalAfValue: 0,
+        totalMsReleased: 0,
+        dailyMsRelease: 0,
+        totalMsValue: 0,
         tradingCapital: order.tradingCapital,
         isComplete: true,
         mode: 'package' as const,
         startDay,
-        afKeptInSystem: 0,
-        afWithdrawn: 0,
+        msKeptInSystem: 0,
+        msWithdrawn: 0,
       };
     }
 
@@ -1108,15 +1108,15 @@ export function calculateOrderReleaseProgress(
     const progressPercent = totalDays > 0 ? (effectiveDay / totalDays) * 100 : 100;
     const isComplete = effectiveDayFromStart >= totalDays;
 
-    // Calculate daily AF release using linear release
-    let dailyAfRelease = 0;
+    // Calculate daily MS release using linear release
+    let dailyMsRelease = 0;
     if (config.stakingEnabled) {
-      const { dailyAf } = calculateLinearDailyRelease(order, config, afPrice);
-      dailyAfRelease = dailyAf;
+      const { dailyMs } = calculateLinearDailyRelease(order, config, msPrice);
+      dailyMsRelease = dailyMs;
     }
 
-    const totalAfReleased = dailyAfRelease * effectiveDay;
-    const totalAfValue = totalAfReleased * afPrice;
+    const totalMsReleased = dailyMsRelease * effectiveDay;
+    const totalMsValue = totalMsReleased * msPrice;
     const dynamicTradingCapital = order.amount * config.tradingCapitalMultiplier;
 
     return {
@@ -1127,15 +1127,15 @@ export function calculateOrderReleaseProgress(
       currentDay: effectiveDay,
       daysRemaining,
       progressPercent,
-      totalAfReleased,
-      dailyAfRelease,
-      totalAfValue,
+      totalMsReleased,
+      dailyMsRelease,
+      totalMsValue,
       tradingCapital: dynamicTradingCapital,
       isComplete,
       mode: 'package' as const,
       startDay,
-      afKeptInSystem: 0,
-      afWithdrawn: 0,
+      msKeptInSystem: 0,
+      msWithdrawn: 0,
     };
   });
 }

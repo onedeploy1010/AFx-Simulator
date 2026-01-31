@@ -5,7 +5,7 @@ export interface CLMMPosition {
   liquidity: number;       // L
   priceLower: number;      // Pa
   priceUpper: number;      // Pb
-  tokenX: number;          // AF amount
+  tokenX: number;          // MS amount
   tokenY: number;          // USDC amount
 }
 
@@ -13,7 +13,7 @@ export interface CLMMDailyResult {
   day: number;
   price: number;
   inRange: boolean;
-  tokenX: number;          // AF
+  tokenX: number;          // MS
   tokenY: number;          // USDC
   positionValue: number;   // LP position value in USDC
   hodlValue: number;       // HODL value in USDC
@@ -27,7 +27,7 @@ export interface CLMMDailyResult {
 }
 
 export interface CLMMSimulationParams {
-  depositX: number;        // AF deposit
+  depositX: number;        // MS deposit
   depositY: number;        // USDC deposit
   initialPrice: number;
   priceLower: number;      // Pa

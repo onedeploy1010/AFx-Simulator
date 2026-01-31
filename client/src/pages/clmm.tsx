@@ -75,10 +75,10 @@ export default function CLMMPage() {
   const derived = useMemo(() => {
     const lastDay = stakingSimData[stakingSimData.length - 1];
 
-    // Use final simulation pool state (after all LP additions, buybacks, AF sells)
+    // Use final simulation pool state (after all LP additions, buybacks, MS sells)
     const poolUsdc = lastDay ? lastDay.poolUsdcBalance : aamPool.usdcBalance;
-    const poolAf = lastDay ? lastDay.poolAfBalance : aamPool.afBalance;
-    const price = lastDay ? lastDay.afPrice : (aamPool.afPrice > 0 ? aamPool.afPrice : 0.1);
+    const poolAf = lastDay ? lastDay.poolMsBalance : aamPool.msBalance;
+    const price = lastDay ? lastDay.msPrice : (aamPool.msPrice > 0 ? aamPool.msPrice : 0.1);
 
     const priceLower = price * (1 - rangeWidthPct / 100);
     const priceUpper = price * (1 + rangeWidthPct / 100);
@@ -88,7 +88,7 @@ export default function CLMMPage() {
 
     // Per-day volumes from simulation (sell + buy)
     const dailyVolumes = stakingSimData.map(
-      (r) => (r.afSellingRevenueUsdc || 0) + (r.buybackAmountUsdc || 0)
+      (r) => (r.msSellingRevenueUsdc || 0) + (r.buybackAmountUsdc || 0)
     );
     const avgDailyVolume =
       dailyVolumes.length > 0
@@ -96,7 +96,7 @@ export default function CLMMPage() {
         : 0;
 
     // Per-day sell / buy
-    const dailySells = stakingSimData.map((r) => r.afSellingRevenueUsdc || 0);
+    const dailySells = stakingSimData.map((r) => r.msSellingRevenueUsdc || 0);
     const dailyBuys = stakingSimData.map((r) => r.buybackAmountUsdc || 0);
     const avgDailySell =
       dailySells.length > 0
@@ -109,7 +109,7 @@ export default function CLMMPage() {
     const netFlow = avgDailyBuy - avgDailySell;
 
     // Price trajectory from simulation
-    const priceTrajectory = stakingSimData.map((r) => r.afPrice);
+    const priceTrajectory = stakingSimData.map((r) => r.msPrice);
 
     return {
       price,
@@ -193,9 +193,9 @@ export default function CLMMPage() {
   const buySellChartData = useMemo(() => {
     return stakingSimData.map((r, i) => ({
       day: r.day,
-      sell: r.afSellingRevenueUsdc || 0,
+      sell: r.msSellingRevenueUsdc || 0,
       buy: r.buybackAmountUsdc || 0,
-      net: (r.buybackAmountUsdc || 0) - (r.afSellingRevenueUsdc || 0),
+      net: (r.buybackAmountUsdc || 0) - (r.msSellingRevenueUsdc || 0),
     }));
   }, [stakingSimData]);
 
@@ -318,7 +318,7 @@ export default function CLMMPage() {
                 区间: ${derived.priceLower.toFixed(4)} — ${derived.priceUpper.toFixed(4)}
               </Badge>
               <Badge variant="secondary">
-                AF 存入: {formatNumber(derived.depositX, 0)}
+                MS 存入: {formatNumber(derived.depositX, 0)}
               </Badge>
               <Badge variant="secondary">
                 USDC 存入: {formatCurrency(derived.depositY)}
@@ -347,7 +347,7 @@ export default function CLMMPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">用户卖 AF (USDC)</p>
+            <p className="text-xs text-muted-foreground">用户卖 MS (USDC)</p>
           </CardContent>
         </Card>
 
@@ -671,7 +671,7 @@ export default function CLMMPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">代币组成</CardTitle>
-            <CardDescription>AF 价值 + USDC 组成的仓位价值</CardDescription>
+            <CardDescription>MS 价值 + USDC 组成的仓位价值</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[220px] md:h-[300px]">
@@ -697,7 +697,7 @@ export default function CLMMPage() {
                   <Area
                     type="monotone"
                     dataKey="tokenXValue"
-                    name="AF 价值"
+                    name="MS 价值"
                     stackId="1"
                     stroke="hsl(var(--chart-1))"
                     fill="hsl(var(--chart-1) / 0.4)"
@@ -826,7 +826,7 @@ export default function CLMMPage() {
                   <TableHead className="w-16">Day</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>In Range</TableHead>
-                  <TableHead>AF</TableHead>
+                  <TableHead>MS</TableHead>
                   <TableHead>USDC</TableHead>
                   <TableHead>Position</TableHead>
                   <TableHead>HODL</TableHead>

@@ -35,7 +35,7 @@ const menuItems = [
     title: "释放进度",
     url: "/release",
     icon: TrendingUp,
-    description: "查看 AF 释放情况",
+    description: "查看 MS 释放情况",
   },
   {
     title: "交易模拟",
@@ -84,10 +84,10 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary">
-            <span className="text-lg font-bold text-primary-foreground">AF</span>
+            <span className="text-lg font-bold text-primary-foreground">MS</span>
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-sidebar-foreground">AFx Calculator</h2>
+            <h2 className="text-lg font-semibold text-sidebar-foreground">NMS Calculator</h2>
             <p className="text-xs text-sidebar-foreground/60">经济模型验证工具</p>
           </div>
         </div>

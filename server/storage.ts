@@ -1,17 +1,17 @@
-import { type User, type InsertUser, type AFxConfig, defaultConfig } from "@shared/schema";
+import { type User, type InsertUser, type NMSConfig, defaultConfig } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  getConfig(): Promise<AFxConfig>;
-  saveConfig(config: AFxConfig): Promise<AFxConfig>;
+  getConfig(): Promise<NMSConfig>;
+  saveConfig(config: NMSConfig): Promise<NMSConfig>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private config: AFxConfig;
+  private config: NMSConfig;
 
   constructor() {
     this.users = new Map();
@@ -35,11 +35,11 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  async getConfig(): Promise<AFxConfig> {
+  async getConfig(): Promise<NMSConfig> {
     return this.config;
   }
 
-  async saveConfig(config: AFxConfig): Promise<AFxConfig> {
+  async saveConfig(config: NMSConfig): Promise<NMSConfig> {
     this.config = config;
     return this.config;
   }

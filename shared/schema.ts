@@ -4,8 +4,8 @@ import { z } from "zod";
 export const PACKAGE_TIERS = [100, 500, 1000, 3000, 5000, 10000] as const;
 export type PackageTier = typeof PACKAGE_TIERS[number];
 
-// AF Release Mode
-export type AFReleaseMode = 'gold_standard' | 'coin_standard';
+// MS Release Mode
+export type MSReleaseMode = 'gold_standard' | 'coin_standard';
 
 // Trading Mode
 export type TradingMode = 'individual' | 'dividend_pool';
@@ -44,19 +44,19 @@ export type PackageConfig = z.infer<typeof packageConfigSchema>;
 // Days mode config for each duration tier
 export const daysConfigSchema = z.object({
   days: z.number(), // 30, 60, 90, 180
-  releaseMultiplier: z.number().min(1), // Total AF = deposit/price * multiplier
+  releaseMultiplier: z.number().min(1), // Total MS = deposit/price * multiplier
   tradingFeeRate: z.number().min(0).max(100),
   tradingProfitRate: z.number().min(-100).max(100),
   profitSharePercent: z.number().min(0).max(100),
-  withdrawFeePercent: z.number().min(0).max(100), // Fee on AF withdrawal (default 20%)
+  withdrawFeePercent: z.number().min(0).max(100), // Fee on MS withdrawal (default 20%)
 });
 
 export type DaysConfig = z.infer<typeof daysConfigSchema>;
 
 // Main configuration schema
-export const afxConfigSchema = z.object({
-  // AF Release Mode
-  afReleaseMode: z.enum(['gold_standard', 'coin_standard']),
+export const nmsConfigSchema = z.object({
+  // MS Release Mode
+  msReleaseMode: z.enum(['gold_standard', 'coin_standard']),
 
   // Simulation Mode: package (配套模式) or days (天数模式)
   simulationMode: z.enum(['package', 'days']),
@@ -71,34 +71,34 @@ export const afxConfigSchema = z.object({
   tradingCapitalMultiplier: z.number().min(1), // Principal × multiplier = trading capital
 
   // Core settings
-  stakingEnabled: z.boolean(), // Whether AF release period is enabled
+  stakingEnabled: z.boolean(), // Whether MS release period is enabled
   releaseStartsTradingDays: z.number().min(0), // Days after staking before trading begins
   
   // Initial LP pool settings
   initialLpUsdc: z.number().min(0), // Initial USDC in LP pool
-  initialLpAf: z.number().min(0), // Initial AF in LP pool
+  initialLpMs: z.number().min(0), // Initial MS in LP pool
   
   // USDC deposit allocation (from user deposits)
   depositLpRatio: z.number().min(0).max(100), // % of deposit to LP (add liquidity)
-  depositBuybackRatio: z.number().min(0).max(100), // % of deposit to buyback AF
+  depositBuybackRatio: z.number().min(0).max(100), // % of deposit to buyback MS
   // Remaining goes to trading reserve (calculated as 100 - lpRatio - buybackRatio)
   
   // Daily trading volume percent (how much of trading capital is traded daily)
   dailyTradingVolumePercent: z.number().min(0).max(100),
   
-  // Burn ratio for withdrawn AF (% of withdrawn AF that gets burned)
-  afExitBurnRatio: z.number().min(0).max(100),
+  // Burn ratio for withdrawn MS (% of withdrawn MS that gets burned)
+  msExitBurnRatio: z.number().min(0).max(100),
   
   // Trading fund flow ratios (from trading capital)
   lpPoolUsdcRatio: z.number().min(0).max(100), // % USDC to LP
-  lpPoolAfRatio: z.number().min(0).max(100), // % AF to LP
+  lpPoolMsRatio: z.number().min(0).max(100), // % MS to LP
   buybackRatio: z.number().min(0).max(100), // % to buyback
   reserveRatio: z.number().min(0).max(100), // % to forex reserve
   
-  // Multiplier cap for days mode (stop releasing when AF value reaches principal × multiplier)
+  // Multiplier cap for days mode (stop releasing when MS value reaches principal × multiplier)
   multiplierCapEnabled: z.boolean(),
 
-  // Trading mode: individual (per-order trading) or dividend_pool (AF-weighted pool distribution)
+  // Trading mode: individual (per-order trading) or dividend_pool (MS-weighted pool distribution)
   tradingMode: z.enum(['individual', 'dividend_pool']),
 
   // Dividend pool parameters
@@ -119,7 +119,7 @@ export const afxConfigSchema = z.object({
   brokerDividendRates: z.array(z.number()), // V1-V6 differential dividend rates
 });
 
-export type AFxConfig = z.infer<typeof afxConfigSchema>;
+export type NMSConfig = z.infer<typeof nmsConfigSchema>;
 
 // Staking order
 export const stakingOrderSchema = z.object({
@@ -128,18 +128,18 @@ export const stakingOrderSchema = z.object({
   amount: z.number(),
   startDate: z.string(),
   daysStaked: z.number(),
-  afReleased: z.number(),
+  msReleased: z.number(),
   tradingCapital: z.number(),
   // New fields for mode support
   mode: z.enum(['package', 'days']).default('package'),
   startDay: z.number().default(0), // Which simulation day this order was placed
   durationDays: z.number().optional(), // For days mode
-  totalAfToRelease: z.number().default(0), // For days mode: total AF to release over duration
-  afWithdrawn: z.number().default(0), // AF withdrawn so far
-  afKeptInSystem: z.number().default(0), // AF kept in system (not withdrawn)
-  // Per-order AF release withdrawal ratio (0-100)
-  // 0% = all AF → trading capital (no sell pressure)
-  // 100% = all AF → withdraw → burn portion + secondary market sell pressure
+  totalMsToRelease: z.number().default(0), // For days mode: total MS to release over duration
+  msWithdrawn: z.number().default(0), // MS withdrawn so far
+  msKeptInSystem: z.number().default(0), // MS kept in system (not withdrawn)
+  // Per-order MS release withdrawal ratio (0-100)
+  // 0% = all MS → trading capital (no sell pressure)
+  // 100% = all MS → withdraw → burn portion + secondary market sell pressure
   withdrawPercent: z.number().min(0).max(100).default(60),
 });
 
@@ -148,8 +148,8 @@ export type StakingOrder = z.infer<typeof stakingOrderSchema>;
 // Simulation result for a day
 export const dailySimulationSchema = z.object({
   day: z.number(),
-  afReleased: z.number(),
-  afPrice: z.number(),
+  msReleased: z.number(),
+  msPrice: z.number(),
   userProfit: z.number(),
   platformProfit: z.number(),
   brokerProfit: z.number(),
@@ -157,17 +157,17 @@ export const dailySimulationSchema = z.object({
   lpPoolSize: z.number(),
   // Pool state snapshot at end of day
   poolUsdcBalance: z.number(), // USDC in pool
-  poolAfBalance: z.number(), // AF in pool
-  poolTotalValue: z.number(), // Pool TVL in USDC (USDC + AF * price)
+  poolMsBalance: z.number(), // MS in pool
+  poolTotalValue: z.number(), // Pool TVL in USDC (USDC + MS * price)
   buybackAmountUsdc: z.number(), // Buyback amount in USDC
-  burnAmountAf: z.number(), // Burn amount in AF
+  burnAmountMs: z.number(), // Burn amount in MS
   // Exit distribution tracking
-  toSecondaryMarketAf: z.number(), // AF sold to secondary market
-  // AF selling revenue (USDC received from selling withdrawn AF to LP pool)
-  afSellingRevenueUsdc: z.number(),
+  toSecondaryMarketMs: z.number(), // MS sold to secondary market
+  // MS selling revenue (USDC received from selling withdrawn MS to LP pool)
+  msSellingRevenueUsdc: z.number(),
   // Fund flow tracking (from trading capital)
   lpContributionUsdc: z.number(), // USDC added to LP pool
-  lpContributionAfValue: z.number(), // AF value added to LP pool (in USDC)
+  lpContributionMsValue: z.number(), // MS value added to LP pool (in USDC)
   reserveAmountUsdc: z.number(), // Forex reserve (in USDC)
 });
 
@@ -179,13 +179,13 @@ export const orderDailyDetailSchema = z.object({
   orderId: z.string(),
   principalRelease: z.number(), // USDC value of principal component
   interestRelease: z.number(), // USDC value of interest component
-  dailyAfRelease: z.number(), // AF released this day
-  afPrice: z.number(),
-  cumAfReleased: z.number(), // Cumulative AF released
-  afInSystem: z.number(), // AF kept in system (not withdrawn)
-  tradingCapital: z.number(), // Trading capital from un-withdrawn AF
+  dailyMsRelease: z.number(), // MS released this day
+  msPrice: z.number(),
+  cumMsReleased: z.number(), // Cumulative MS released
+  msInSystem: z.number(), // MS kept in system (not withdrawn)
+  tradingCapital: z.number(), // Trading capital from un-withdrawn MS
   forexIncome: z.number(), // Forex trading income this day
-  withdrawnAf: z.number(), // AF withdrawn this day
+  withdrawnMs: z.number(), // MS withdrawn this day
   withdrawFee: z.number(), // Withdraw fee (USDC)
 });
 
@@ -200,16 +200,16 @@ export const orderReleaseProgressSchema = z.object({
   currentDay: z.number(), // Current day in simulation
   daysRemaining: z.number(), // Days remaining
   progressPercent: z.number(), // Progress percentage
-  totalAfReleased: z.number(), // Total AF released so far
-  dailyAfRelease: z.number(), // Daily AF release amount
-  totalAfValue: z.number(), // Total value of released AF (in USDC)
+  totalMsReleased: z.number(), // Total MS released so far
+  dailyMsRelease: z.number(), // Daily MS release amount
+  totalMsValue: z.number(), // Total value of released MS (in USDC)
   tradingCapital: z.number(), // Trading capital allocated
   isComplete: z.boolean(), // Whether release is complete
   // New fields for mode support
   mode: z.enum(['package', 'days']).default('package'),
   startDay: z.number().default(0),
-  afKeptInSystem: z.number().default(0),
-  afWithdrawn: z.number().default(0),
+  msKeptInSystem: z.number().default(0),
+  msWithdrawn: z.number().default(0),
 });
 
 export type OrderReleaseProgress = z.infer<typeof orderReleaseProgressSchema>;
@@ -217,9 +217,9 @@ export type OrderReleaseProgress = z.infer<typeof orderReleaseProgressSchema>;
 // AAM Pool state
 export const aamPoolSchema = z.object({
   usdcBalance: z.number(),
-  afBalance: z.number(),
+  msBalance: z.number(),
   lpTokens: z.number(),
-  afPrice: z.number(),
+  msPrice: z.number(),
   totalBuyback: z.number(),
   totalBurn: z.number(),
 });
@@ -249,8 +249,8 @@ export const defaultDaysConfigs: DaysConfig[] = [
 ];
 
 // Default configuration
-export const defaultConfig: AFxConfig = {
-  afReleaseMode: 'gold_standard',
+export const defaultConfig: NMSConfig = {
+  msReleaseMode: 'coin_standard',
   simulationMode: 'days',
   daysConfigs: defaultDaysConfigs,
   tradingCapitalMultiplier: 3, // Global trading capital multiplier (principal × multiplier)
@@ -268,14 +268,14 @@ export const defaultConfig: AFxConfig = {
   stakingEnabled: true,
   releaseStartsTradingDays: 0, // Trading starts immediately
   initialLpUsdc: 10000, // 10K USDC initial LP
-  initialLpAf: 100000, // 100K AF initial LP
+  initialLpMs: 100000, // 100K MS initial LP
   depositLpRatio: 30, // 30% of deposits to LP
   depositBuybackRatio: 20, // 20% of deposits to buyback
   // Remaining 50% goes to trading reserve
   dailyTradingVolumePercent: 10, // 10% of trading capital traded daily
-  afExitBurnRatio: 20, // 20% of withdrawn AF gets burned
+  msExitBurnRatio: 20, // 20% of withdrawn MS gets burned
   lpPoolUsdcRatio: 30,
-  lpPoolAfRatio: 30,
+  lpPoolMsRatio: 30,
   buybackRatio: 20,
   reserveRatio: 50,
   multiplierCapEnabled: true,

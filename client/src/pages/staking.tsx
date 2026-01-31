@@ -18,8 +18,8 @@ export default function StakingPage() {
   
   // Calculate initial price for comparison
   const initialPrice = calculateInitialPrice(config);
-  const priceChange = aamPool.afPrice - initialPrice;
-  const priceChangePercent = initialPrice > 0 ? ((aamPool.afPrice / initialPrice) - 1) * 100 : 0;
+  const priceChange = aamPool.msPrice - initialPrice;
+  const priceChangePercent = initialPrice > 0 ? ((aamPool.msPrice / initialPrice) - 1) * 100 : 0;
   const { toast } = useToast();
   
   const [selectedTier, setSelectedTier] = useState<string>("1000");
@@ -56,13 +56,13 @@ export default function StakingPage() {
         amount: tier,
         startDate: new Date().toISOString(),
         daysStaked: days,
-        afReleased: 0,
+        msReleased: 0,
         tradingCapital: tier * config.tradingCapitalMultiplier,
         mode: 'package',
         startDay: currentSimulationDay,
-        totalAfToRelease: 0,
-        afWithdrawn: 0,
-        afKeptInSystem: 0,
+        totalMsToRelease: 0,
+        msWithdrawn: 0,
+        msKeptInSystem: 0,
         withdrawPercent,
       });
     }
@@ -84,8 +84,8 @@ export default function StakingPage() {
     const daysConfig = config.daysConfigs.find(dc => dc.days === daysDuration);
     if (!daysConfig) return;
 
-    const afQuantity = aamPool.afPrice > 0 ? amt / aamPool.afPrice : 0;
-    const totalAfToRelease = afQuantity * daysConfig.releaseMultiplier;
+    const afQuantity = aamPool.msPrice > 0 ? amt / aamPool.msPrice : 0;
+    const totalMsToRelease = afQuantity * daysConfig.releaseMultiplier;
 
     addStakingOrder({
       packageTier: 0,
@@ -93,19 +93,19 @@ export default function StakingPage() {
       startDate: new Date().toISOString(),
       daysStaked: daysDuration,
       durationDays: daysDuration,
-      afReleased: 0,
+      msReleased: 0,
       tradingCapital: 0,
       mode: 'days',
       startDay: currentSimulationDay,
-      totalAfToRelease,
-      afWithdrawn: 0,
-      afKeptInSystem: 0,
+      totalMsToRelease,
+      msWithdrawn: 0,
+      msKeptInSystem: 0,
       withdrawPercent,
     });
 
     toast({
       title: "天数模式订单已添加",
-      description: `${amt} USDC, ${daysDuration}天, 总释放 ${totalAfToRelease.toFixed(2)} AF`,
+      description: `${amt} USDC, ${daysDuration}天, 总释放 ${totalMsToRelease.toFixed(2)} MS`,
     });
     setDaysAmount("1000");
   };
@@ -116,7 +116,7 @@ export default function StakingPage() {
     return sum + calculateOrderTradingCapital(order, config);
   }, 0);
   const avgDailyRelease = stakingOrders.reduce((sum, order) => {
-    return sum + calculateOrderDailyRelease(order, config, aamPool.afPrice);
+    return sum + calculateOrderDailyRelease(order, config, aamPool.msPrice);
   }, 0);
 
   const ordersByTier = PACKAGE_TIERS.map(tier => ({
@@ -153,7 +153,7 @@ export default function StakingPage() {
               resetAAMPool();
               toast({
                 title: "AAM池已重置",
-                description: `价格: $${calculateInitialPrice(config).toFixed(6)} (${formatCurrency(config.initialLpUsdc)} / ${formatNumber(config.initialLpAf)} AF)`
+                description: `价格: $${calculateInitialPrice(config).toFixed(6)} (${formatCurrency(config.initialLpUsdc)} / ${formatNumber(config.initialLpMs)} MS)`
               });
             }}
             data-testid="button-reset-aam"
@@ -198,14 +198,14 @@ export default function StakingPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>预估日释放 AF</CardDescription>
-            <CardTitle className="text-xl md:text-3xl">{formatNumber(avgDailyRelease)} AF</CardTitle>
+            <CardDescription>预估日释放 MS</CardDescription>
+            <CardTitle className="text-xl md:text-3xl">{formatNumber(avgDailyRelease)} MS</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Calculator className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {config.afReleaseMode === 'gold_standard' ? '金本位模式' : '币本位模式'}
+                {config.msReleaseMode === 'gold_standard' ? '金本位模式' : '币本位模式'}
               </span>
             </div>
           </CardContent>
@@ -213,8 +213,8 @@ export default function StakingPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>当前 AF 价格</CardDescription>
-            <CardTitle className="text-xl md:text-3xl">${aamPool.afPrice.toFixed(6)}</CardTitle>
+            <CardDescription>当前 MS 价格</CardDescription>
+            <CardTitle className="text-xl md:text-3xl">${aamPool.msPrice.toFixed(6)}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -228,7 +228,7 @@ export default function StakingPage() {
                 初始: ${initialPrice.toFixed(6)}
               </p>
               <p className="text-xs text-muted-foreground">
-                LP池: {formatCurrency(aamPool.usdcBalance)} / {formatNumber(aamPool.afBalance)} AF
+                LP池: {formatCurrency(aamPool.usdcBalance)} / {formatNumber(aamPool.msBalance)} MS
               </p>
               <p className="text-xs text-muted-foreground">
                 累计回购: {formatCurrency(aamPool.totalBuyback)}
@@ -331,7 +331,7 @@ export default function StakingPage() {
           {/* Withdraw Percent Slider — shared by both modes */}
           <div className="space-y-3 p-4 rounded-lg border">
             <div className="flex items-center justify-between">
-              <Label>AF 释放提现比例: {withdrawPercent}%</Label>
+              <Label>MS 释放提现比例: {withdrawPercent}%</Label>
               <div className="flex gap-3 text-xs">
                 <span className="text-red-500">提现 {withdrawPercent}%</span>
                 <span className="text-muted-foreground">|</span>
@@ -349,21 +349,21 @@ export default function StakingPage() {
               <span>0% — 全部持有(=交易金)</span>
               <span>100% — 全部提现</span>
             </div>
-            {/* AF flow preview */}
+            {/* MS flow preview */}
             {(() => {
-              // Use a sample 100 AF to show proportional flow
-              const sample = calculateAFExitDistribution(100, aamPool.afPrice, withdrawPercent, config);
+              // Use a sample 100 MS to show proportional flow
+              const sample = calculateAFExitDistribution(100, aamPool.msPrice, withdrawPercent, config);
               return (
                 <div className="p-3 rounded-md bg-muted/50 space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">每 100 AF 释放流向：</p>
+                  <p className="text-xs font-medium text-muted-foreground">每 100 MS 释放流向：</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="p-2 rounded border text-center">
                       <p className="text-muted-foreground">提现</p>
-                      <p className="font-bold text-red-500">{formatNumber(sample.toWithdrawAf)} AF</p>
+                      <p className="font-bold text-red-500">{formatNumber(sample.toWithdrawMs)} MS</p>
                     </div>
                     <div className="p-2 rounded border text-center">
                       <p className="text-muted-foreground">持有(=交易金)</p>
-                      <p className="font-bold text-green-500">{formatNumber(sample.toHoldAf)} AF</p>
+                      <p className="font-bold text-green-500">{formatNumber(sample.toHoldMs)} MS</p>
                     </div>
                   </div>
                 </div>
@@ -411,17 +411,17 @@ export default function StakingPage() {
               {(() => {
                 const amt = parseFloat(daysAmount) || 0;
                 const dc = config.daysConfigs.find(d => d.days === daysDuration);
-                if (amt >= 100 && dc && aamPool.afPrice > 0) {
-                  const afQty = amt / aamPool.afPrice;
+                if (amt >= 100 && dc && aamPool.msPrice > 0) {
+                  const afQty = amt / aamPool.msPrice;
                   const totalRelease = afQty * dc.releaseMultiplier;
                   const dailyRelease = totalRelease / daysDuration;
-                  const dailyExit = calculateAFExitDistribution(dailyRelease, aamPool.afPrice, withdrawPercent, config);
+                  const dailyExit = calculateAFExitDistribution(dailyRelease, aamPool.msPrice, withdrawPercent, config);
                   return (
                     <div className="p-3 rounded-md border bg-muted/50 space-y-2">
                       <p className="text-sm font-medium">预览计算</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                         <div>
-                          <span className="text-muted-foreground">AF数量: </span>
+                          <span className="text-muted-foreground">MS数量: </span>
                           <span className="font-medium">{formatNumber(afQty)}</span>
                         </div>
                         <div>
@@ -430,21 +430,21 @@ export default function StakingPage() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">总释放: </span>
-                          <span className="font-medium">{formatNumber(totalRelease)} AF</span>
+                          <span className="font-medium">{formatNumber(totalRelease)} MS</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">日释放: </span>
-                          <span className="font-medium">{formatNumber(dailyRelease)} AF</span>
+                          <span className="font-medium">{formatNumber(dailyRelease)} MS</span>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs border-t pt-2">
                         <div>
                           <span className="text-muted-foreground">日提现: </span>
-                          <span className="font-medium text-red-500">{formatNumber(dailyExit.toWithdrawAf, 4)} AF</span>
+                          <span className="font-medium text-red-500">{formatNumber(dailyExit.toWithdrawMs, 4)} MS</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">日持有: </span>
-                          <span className="font-medium text-green-500">{formatNumber(dailyExit.toHoldAf, 4)} AF</span>
+                          <span className="font-medium text-green-500">{formatNumber(dailyExit.toHoldMs, 4)} MS</span>
                         </div>
                       </div>
                     </div>
@@ -504,7 +504,7 @@ export default function StakingPage() {
               </Button>
               {!config.stakingEnabled && (
                 <div className="mt-4 p-3 rounded-md bg-muted text-muted-foreground text-sm">
-                  铸造周期已禁用，AF 将立即释放
+                  铸造周期已禁用，MS 将立即释放
                 </div>
               )}
             </div>
@@ -544,8 +544,8 @@ export default function StakingPage() {
               {stakingOrders.slice(0, 20).map((order) => {
                 const pkg = config.packageConfigs.find(p => p.tier === order.packageTier);
                 const daysSinceStart = Math.max(0, currentSimulationDay - (order.startDay ?? 0));
-                const dailyAf = calculateOrderDailyRelease(order, config, aamPool.afPrice);
-                const exitDist = calculateAFExitDistribution(dailyAf, aamPool.afPrice, order.withdrawPercent ?? 60, config);
+                const dailyAf = calculateOrderDailyRelease(order, config, aamPool.msPrice);
+                const exitDist = calculateAFExitDistribution(dailyAf, aamPool.msPrice, order.withdrawPercent ?? 60, config);
                 return (
                   <div key={order.id} className="p-4 rounded-md border space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
@@ -586,7 +586,7 @@ export default function StakingPage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">日释放</p>
-                        <p className="font-medium">{formatNumber(dailyAf, 4)} AF</p>
+                        <p className="font-medium">{formatNumber(dailyAf, 4)} MS</p>
                       </div>
                       {config.stakingEnabled && (
                         <div>
@@ -602,15 +602,15 @@ export default function StakingPage() {
                       )}
                     </div>
 
-                    {/* AF flow breakdown */}
+                    {/* MS flow breakdown */}
                     <div className="grid grid-cols-2 gap-2 p-3 rounded-md bg-muted/50 text-xs">
                       <div className="text-center">
                         <p className="text-muted-foreground">日提现</p>
-                        <p className="font-bold text-red-500">{formatNumber(exitDist.toWithdrawAf, 4)} AF</p>
+                        <p className="font-bold text-red-500">{formatNumber(exitDist.toWithdrawMs, 4)} MS</p>
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">日持有(=交易金)</p>
-                        <p className="font-bold text-green-500">{formatNumber(exitDist.toHoldAf, 4)} AF</p>
+                        <p className="font-bold text-green-500">{formatNumber(exitDist.toHoldMs, 4)} MS</p>
                       </div>
                     </div>
                   </div>

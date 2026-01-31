@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfigStore } from "@/hooks/use-config";
-import { runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderAfSellingRevenue, isMultiplierCapReached } from "@/lib/calculations";
+import { runSimulationWithDetails, formatNumber, formatCurrency, calculateOrderReleaseProgress, calculateInitialPrice, calculateOrderDailyForexProfit, calculateOrderMsSellingRevenue, isMultiplierCapReached } from "@/lib/calculations";
 import DailyDetailsDialog from "@/components/daily-details-dialog";
 import { type OrderDailyDetail } from "@shared/schema";
 import { TrendingUp, Coins, Flame, DollarSign, RefreshCw, Package, Clock, CheckCircle, FileText } from "lucide-react";
@@ -35,30 +35,30 @@ export default function ReleasePage() {
   const totals = useMemo(() => {
     if (simulationResults.length === 0) return null;
     return {
-      totalAfReleased: simulationResults.reduce((sum, r) => sum + r.afReleased, 0),
+      totalMsReleased: simulationResults.reduce((sum, r) => sum + r.msReleased, 0),
       totalUserProfit: simulationResults.reduce((sum, r) => sum + r.userProfit, 0),
       totalPlatformProfit: simulationResults.reduce((sum, r) => sum + r.platformProfit, 0),
       totalBrokerProfit: simulationResults.reduce((sum, r) => sum + r.brokerProfit, 0),
-      totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountAf, 0),
-      avgPrice: simulationResults.reduce((sum, r) => sum + r.afPrice, 0) / simulationResults.length,
+      totalBurn: simulationResults.reduce((sum, r) => sum + r.burnAmountMs, 0),
+      avgPrice: simulationResults.reduce((sum, r) => sum + r.msPrice, 0) / simulationResults.length,
       initialPrice: calculateInitialPrice(config),
-      finalPrice: simulationResults[simulationResults.length - 1]?.afPrice || 0,
-      totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketAf, 0),
+      finalPrice: simulationResults[simulationResults.length - 1]?.msPrice || 0,
+      totalToSecondaryMarket: simulationResults.reduce((sum, r) => sum + r.toSecondaryMarketMs, 0),
       totalLpUsdc: simulationResults.reduce((sum, r) => sum + r.lpContributionUsdc, 0),
-      totalLpAfValue: simulationResults.reduce((sum, r) => sum + r.lpContributionAfValue, 0),
+      totalLpAfValue: simulationResults.reduce((sum, r) => sum + r.lpContributionMsValue, 0),
       totalBuyback: simulationResults.reduce((sum, r) => sum + r.buybackAmountUsdc, 0),
       totalReserve: simulationResults.reduce((sum, r) => sum + r.reserveAmountUsdc, 0),
       // Revenue breakdown
-      totalAfSellingRevenue: simulationResults.reduce((sum, r) => sum + r.afSellingRevenueUsdc, 0),
+      totalAfSellingRevenue: simulationResults.reduce((sum, r) => sum + r.msSellingRevenueUsdc, 0),
       totalForexProfit: simulationResults.reduce((sum, r) => sum + r.userProfit, 0),
     };
-  }, [simulationResults, config.initialLpUsdc, config.initialLpAf, aamPool.afPrice]);
+  }, [simulationResults, config.initialLpUsdc, config.initialLpMs, aamPool.msPrice]);
 
   // Build chart data with cumulative values and initial price at day 0
   const chartData = useMemo(() => {
     if (simulationResults.length === 0) return [];
     
-    let cumAfReleased = 0;
+    let cumMsReleased = 0;
     let cumUserProfit = 0;
     let cumPlatformProfit = 0;
     let cumBrokerProfit = 0;
@@ -73,10 +73,10 @@ export default function ReleasePage() {
     const data = [{
       day: 0,
       dayLabel: 'Day 0',
-      afPrice: lpInitialPrice,
-      afReleased: 0,
+      msPrice: lpInitialPrice,
+      msReleased: 0,
       userProfit: 0,
-      cumAfReleased: 0,
+      cumMsReleased: 0,
       cumUserProfit: 0,
       cumPlatformProfit: 0,
       cumBrokerProfit: 0,
@@ -88,23 +88,23 @@ export default function ReleasePage() {
     }];
     
     for (const r of simulationResults) {
-      cumAfReleased += r.afReleased;
+      cumMsReleased += r.msReleased;
       cumUserProfit += r.userProfit;
       cumPlatformProfit += r.platformProfit;
       cumBrokerProfit += r.brokerProfit;
-      cumWithdrawAf += r.toSecondaryMarketAf;
-      // Reward AF = total released - burned - kept as fee
-      cumRewardAf += r.afReleased - r.burnAmountAf;
-      cumAfSellingRevenue += r.afSellingRevenueUsdc;
+      cumWithdrawAf += r.toSecondaryMarketMs;
+      // Reward MS = total released - burned - kept as fee
+      cumRewardAf += r.msReleased - r.burnAmountMs;
+      cumAfSellingRevenue += r.msSellingRevenueUsdc;
       cumForexProfit += r.userProfit;
 
       data.push({
         day: r.day,
         dayLabel: `Day ${r.day}`,
-        afPrice: r.afPrice,
-        afReleased: r.afReleased,
+        msPrice: r.msPrice,
+        msReleased: r.msReleased,
         userProfit: r.userProfit,
-        cumAfReleased,
+        cumMsReleased,
         cumUserProfit,
         cumPlatformProfit,
         cumBrokerProfit,
@@ -117,16 +117,16 @@ export default function ReleasePage() {
     }
 
     return data;
-  }, [simulationResults, config.initialLpUsdc, config.initialLpAf, aamPool.afPrice]);
+  }, [simulationResults, config.initialLpUsdc, config.initialLpMs, aamPool.msPrice]);
 
   // Calculate per-order release progress for current simulation day (filtered by selection)
   const orderProgress = useMemo(() => {
     if (filteredOrders.length === 0) return [];
     const currentAfPrice = simulationResults.length > 0 
-      ? simulationResults[simulationResults.length - 1].afPrice 
-      : aamPool.afPrice;
+      ? simulationResults[simulationResults.length - 1].msPrice 
+      : aamPool.msPrice;
     return calculateOrderReleaseProgress(filteredOrders, config, simulationDays, currentAfPrice);
-  }, [filteredOrders, config, simulationDays, simulationResults, aamPool.afPrice]);
+  }, [filteredOrders, config, simulationDays, simulationResults, aamPool.msPrice]);
 
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6">
@@ -240,13 +240,13 @@ export default function ReleasePage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <Coins className="h-4 w-4" />
-                      卖AF代币收益
+                      卖MS代币收益
                     </CardDescription>
                     <CardTitle className="text-xl text-blue-500">{formatCurrency(totals.totalAfSellingRevenue)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
-                      日均 {formatCurrency(totals.totalAfSellingRevenue / simulationDays)} | 提取 {formatNumber(totals.totalToSecondaryMarket)} AF
+                      日均 {formatCurrency(totals.totalAfSellingRevenue / simulationDays)} | 提取 {formatNumber(totals.totalToSecondaryMarket)} MS
                     </p>
                   </CardContent>
                 </Card>
@@ -272,13 +272,13 @@ export default function ReleasePage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <Coins className="h-4 w-4" />
-                      累计释放 AF
+                      累计释放 MS
                     </CardDescription>
-                    <CardTitle className="text-xl">{formatNumber(totals.totalAfReleased)}</CardTitle>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalMsReleased)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
-                      日均 {formatNumber(totals.totalAfReleased / simulationDays)} AF
+                      日均 {formatNumber(totals.totalMsReleased / simulationDays)} MS
                     </p>
                   </CardContent>
                 </Card>
@@ -287,9 +287,9 @@ export default function ReleasePage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <Coins className="h-4 w-4" />
-                      累计拨出奖励 AF
+                      累计拨出奖励 MS
                     </CardDescription>
-                    <CardTitle className="text-xl">{formatNumber(totals.totalAfReleased - totals.totalBurn)}</CardTitle>
+                    <CardTitle className="text-xl">{formatNumber(totals.totalMsReleased - totals.totalBurn)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
@@ -302,7 +302,7 @@ export default function ReleasePage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4" />
-                      累计客户提取 AF
+                      累计客户提取 MS
                     </CardDescription>
                     <CardTitle className="text-xl">{formatNumber(totals.totalToSecondaryMarket)}</CardTitle>
                   </CardHeader>
@@ -347,13 +347,13 @@ export default function ReleasePage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2">
                       <Flame className="h-4 w-4" />
-                      累计销毁 AF
+                      累计销毁 MS
                     </CardDescription>
                     <CardTitle className="text-xl">{formatNumber(totals.totalBurn)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
-                      销毁率 {totals.totalAfReleased > 0 ? ((totals.totalBurn / totals.totalAfReleased) * 100).toFixed(1) : 0}%
+                      销毁率 {totals.totalMsReleased > 0 ? ((totals.totalBurn / totals.totalMsReleased) * 100).toFixed(1) : 0}%
                     </p>
                   </CardContent>
                 </Card>
@@ -366,7 +366,7 @@ export default function ReleasePage() {
                     <CardTitle className="text-xl">${totals.initialPrice.toFixed(6)}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-muted-foreground">Day 0 | {formatCurrency(config.initialLpUsdc)} / {formatNumber(config.initialLpAf, 0)} AF</p>
+                    <p className="text-xs text-muted-foreground">Day 0 | {formatCurrency(config.initialLpUsdc)} / {formatNumber(config.initialLpMs, 0)} MS</p>
                   </CardContent>
                 </Card>
 
@@ -443,7 +443,7 @@ export default function ReleasePage() {
                           const daysConfig = config.daysConfigs?.find(d => d.days === progress.totalDays);
                           if (!daysConfig) return null;
                           const capValue = progress.amount * daysConfig.releaseMultiplier;
-                          const currentValue = progress.totalAfReleased * (simulationResults.length > 0 ? simulationResults[simulationResults.length - 1].afPrice : aamPool.afPrice);
+                          const currentValue = progress.totalMsReleased * (simulationResults.length > 0 ? simulationResults[simulationResults.length - 1].msPrice : aamPool.msPrice);
                           const capped = currentValue >= capValue;
                           const capProgress = capValue > 0 ? Math.min((currentValue / capValue) * 100, 100) : 0;
                           return (
@@ -478,23 +478,23 @@ export default function ReleasePage() {
                     
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t">
                       <div>
-                        <p className="text-xs text-muted-foreground">日释放 AF</p>
-                        <p className="text-sm font-medium">{formatNumber(progress.dailyAfRelease)} AF</p>
+                        <p className="text-xs text-muted-foreground">日释放 MS</p>
+                        <p className="text-sm font-medium">{formatNumber(progress.dailyMsRelease)} MS</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">累计释放 AF</p>
-                        <p className="text-sm font-medium">{formatNumber(progress.totalAfReleased)} AF</p>
+                        <p className="text-xs text-muted-foreground">累计释放 MS</p>
+                        <p className="text-sm font-medium">{formatNumber(progress.totalMsReleased)} MS</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">AF 价值 (USDC)</p>
-                        <p className="text-sm font-medium">{formatCurrency(progress.totalAfValue)}</p>
+                        <p className="text-xs text-muted-foreground">MS 价值 (USDC)</p>
+                        <p className="text-sm font-medium">{formatCurrency(progress.totalMsValue)}</p>
                       </div>
                       {progress.mode === 'days' && config.multiplierCapEnabled && (() => {
                         const daysConfig = config.daysConfigs?.find(d => d.days === progress.totalDays);
                         if (!daysConfig) return null;
                         const capValue = progress.amount * daysConfig.releaseMultiplier;
-                        const currentAfPrice = simulationResults.length > 0 ? simulationResults[simulationResults.length - 1].afPrice : aamPool.afPrice;
-                        const currentValue = progress.totalAfReleased * currentAfPrice;
+                        const currentAfPrice = simulationResults.length > 0 ? simulationResults[simulationResults.length - 1].msPrice : aamPool.msPrice;
+                        const currentValue = progress.totalMsReleased * currentAfPrice;
                         return (
                           <div>
                             <p className="text-xs text-muted-foreground">封顶进度</p>
@@ -502,16 +502,16 @@ export default function ReleasePage() {
                           </div>
                         );
                       })()}
-                      {progress.afKeptInSystem > 0 && (
+                      {progress.msKeptInSystem > 0 && (
                         <div>
-                          <p className="text-xs text-muted-foreground">系统内保留 AF</p>
-                          <p className="text-sm font-medium">{formatNumber(progress.afKeptInSystem)} AF</p>
+                          <p className="text-xs text-muted-foreground">系统内保留 MS</p>
+                          <p className="text-sm font-medium">{formatNumber(progress.msKeptInSystem)} MS</p>
                         </div>
                       )}
-                      {progress.afWithdrawn > 0 && (
+                      {progress.msWithdrawn > 0 && (
                         <div>
-                          <p className="text-xs text-muted-foreground">已提取 AF</p>
-                          <p className="text-sm font-medium">{formatNumber(progress.afWithdrawn)} AF</p>
+                          <p className="text-xs text-muted-foreground">已提取 MS</p>
+                          <p className="text-sm font-medium">{formatNumber(progress.msWithdrawn)} MS</p>
                         </div>
                       )}
                     </div>
@@ -530,11 +530,11 @@ export default function ReleasePage() {
                       const userDailyProfit = forexDetail.userProfit;
                       const periodForexProfit = userDailyProfit * progress.currentDay;
 
-                      // Use shared calculation for AF selling revenue
+                      // Use shared calculation for MS selling revenue
                       const currentAfPrice = simulationResults.length > 0
-                        ? simulationResults[Math.min(progress.currentDay - 1, simulationResults.length - 1)]?.afPrice || aamPool.afPrice
-                        : aamPool.afPrice;
-                      const afSelling = calculateOrderAfSellingRevenue(progress.totalAfReleased, currentAfPrice, order?.withdrawPercent ?? 60, config);
+                        ? simulationResults[Math.min(progress.currentDay - 1, simulationResults.length - 1)]?.msPrice || aamPool.msPrice
+                        : aamPool.msPrice;
+                      const afSelling = calculateOrderMsSellingRevenue(progress.totalMsReleased, currentAfPrice, order?.withdrawPercent ?? 60, config);
                       const soldAf = afSelling.soldAf;
                       const afSellingRevenue = afSelling.revenueUsdc;
 
@@ -572,8 +572,8 @@ export default function ReleasePage() {
                               <p className="text-sm font-medium">{pkg.profitSharePercent}%</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">提取AF数量</p>
-                              <p className="text-sm font-medium">{formatNumber(soldAf)} AF</p>
+                              <p className="text-xs text-muted-foreground">提取MS数量</p>
+                              <p className="text-sm font-medium">{formatNumber(soldAf)} MS</p>
                             </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t">
@@ -582,7 +582,7 @@ export default function ReleasePage() {
                               <p className="text-sm font-bold text-green-500">{formatCurrency(periodForexProfit)}</p>
                             </div>
                             <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
-                              <p className="text-xs text-muted-foreground">卖AF代币收益</p>
+                              <p className="text-xs text-muted-foreground">卖MS代币收益</p>
                               <p className="text-sm font-bold text-blue-500">{formatCurrency(afSellingRevenue)}</p>
                             </div>
                             <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
@@ -603,20 +603,20 @@ export default function ReleasePage() {
           {totals && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">AF 退出分配详情</CardTitle>
-                <CardDescription>用户选择提现/保留/转换后的 AF 流向 (各配套独立设置)</CardDescription>
+                <CardTitle className="text-lg">MS 退出分配详情</CardTitle>
+                <CardDescription>用户选择提现/保留/转换后的 MS 流向 (各配套独立设置)</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">卖入 LP 池</p>
-                    <p className="text-lg font-semibold">{formatNumber(totals.totalToSecondaryMarket)} AF</p>
+                    <p className="text-lg font-semibold">{formatNumber(totals.totalToSecondaryMarket)} MS</p>
                     <p className="text-xs text-muted-foreground">提现后卖入池子（价格下降）</p>
                   </div>
                   <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">销毁 AF</p>
-                    <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} AF</p>
-                    <p className="text-xs text-muted-foreground">{config.afExitBurnRatio}% 提现销毁比例</p>
+                    <p className="text-sm text-muted-foreground">销毁 MS</p>
+                    <p className="text-lg font-semibold">{formatNumber(totals.totalBurn)} MS</p>
+                    <p className="text-xs text-muted-foreground">{config.msExitBurnRatio}% 提现销毁比例</p>
                   </div>
                 </div>
               </CardContent>
@@ -637,9 +637,9 @@ export default function ReleasePage() {
                     <p className="text-xs text-muted-foreground">{config.lpPoolUsdcRatio}% 交易金</p>
                   </div>
                   <div className="p-3 rounded-md border">
-                    <p className="text-sm text-muted-foreground">LP 池 (AF价值)</p>
+                    <p className="text-sm text-muted-foreground">LP 池 (MS价值)</p>
                     <p className="text-lg font-semibold">{formatCurrency(totals.totalLpAfValue)}</p>
-                    <p className="text-xs text-muted-foreground">{config.lpPoolAfRatio}% 交易金</p>
+                    <p className="text-xs text-muted-foreground">{config.lpPoolMsRatio}% 交易金</p>
                   </div>
                   <div className="p-3 rounded-md border">
                     <p className="text-sm text-muted-foreground">外汇储备金</p>
@@ -674,13 +674,13 @@ export default function ReleasePage() {
                         borderColor: 'hsl(var(--border))',
                         borderRadius: '6px',
                       }}
-                      formatter={(value: number) => [`$${value.toFixed(6)}`, 'AF 价格']}
+                      formatter={(value: number) => [`$${value.toFixed(6)}`, 'MS 价格']}
                       labelFormatter={(label) => `Day ${label}`}
                     />
                     <Line
                       type="monotone"
-                      dataKey="afPrice"
-                      name="AF 价格"
+                      dataKey="msPrice"
+                      name="MS 价格"
                       stroke="hsl(var(--chart-2))"
                       strokeWidth={2}
                       dot={false}
@@ -694,8 +694,8 @@ export default function ReleasePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">累计 AF 释放与拨出</CardTitle>
-                <CardDescription>累计释放 AF 和累计拨出奖励 AF</CardDescription>
+                <CardTitle className="text-lg">累计 MS 释放与拨出</CardTitle>
+                <CardDescription>累计释放 MS 和累计拨出奖励 MS</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[220px] md:h-[300px]">
@@ -715,15 +715,15 @@ export default function ReleasePage() {
                       <Legend />
                       <Area
                         type="monotone"
-                        dataKey="cumAfReleased"
-                        name="累计释放 AF"
+                        dataKey="cumMsReleased"
+                        name="累计释放 MS"
                         stroke="hsl(var(--primary))"
                         fill="hsl(var(--primary) / 0.3)"
                       />
                       <Area
                         type="monotone"
                         dataKey="cumRewardAf"
-                        name="累计拨出奖励 AF"
+                        name="累计拨出奖励 MS"
                         stroke="hsl(var(--chart-2))"
                         fill="hsl(var(--chart-2) / 0.3)"
                       />
@@ -735,8 +735,8 @@ export default function ReleasePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">累计客户提取 AF</CardTitle>
-                <CardDescription>客户提现后卖入 LP 池的 AF 数量</CardDescription>
+                <CardTitle className="text-lg">累计客户提取 MS</CardTitle>
+                <CardDescription>客户提现后卖入 LP 池的 MS 数量</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[220px] md:h-[300px]">
@@ -756,7 +756,7 @@ export default function ReleasePage() {
                       <Area
                         type="monotone"
                         dataKey="cumWithdrawAf"
-                        name="累计客户提取 AF"
+                        name="累计客户提取 MS"
                         stroke="hsl(var(--chart-4))"
                         fill="hsl(var(--chart-4) / 0.3)"
                       />
@@ -771,7 +771,7 @@ export default function ReleasePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">累计客户收益拆分</CardTitle>
-                <CardDescription>外汇交易收益 + 卖AF代币收益 = 客户总收益</CardDescription>
+                <CardDescription>外汇交易收益 + 卖MS代币收益 = 客户总收益</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[220px] md:h-[300px]">
@@ -811,7 +811,7 @@ export default function ReleasePage() {
                       <Area
                         type="monotone"
                         dataKey="cumAfSellingRevenue"
-                        name="卖AF代币收益"
+                        name="卖MS代币收益"
                         stroke="#3b82f6"
                         fill="rgba(59, 130, 246, 0.2)"
                       />
@@ -823,8 +823,8 @@ export default function ReleasePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">每日 AF 释放</CardTitle>
-                <CardDescription>每日 AF 释放数量</CardDescription>
+                <CardTitle className="text-lg">每日 MS 释放</CardTitle>
+                <CardDescription>每日 MS 释放数量</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[220px] md:h-[300px]">
@@ -843,8 +843,8 @@ export default function ReleasePage() {
                       />
                       <Area
                         type="monotone"
-                        dataKey="afReleased"
-                        name="每日 AF 释放"
+                        dataKey="msReleased"
+                        name="每日 MS 释放"
                         stroke="hsl(var(--primary))"
                         fill="hsl(var(--primary) / 0.2)"
                       />
@@ -917,23 +917,23 @@ export default function ReleasePage() {
                       <div className="space-y-1 text-xs">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">释放</span>
-                          <span>{formatNumber(result.afReleased)} AF</span>
+                          <span>{formatNumber(result.msReleased)} MS</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">币价</span>
-                          <span>${result.afPrice.toFixed(4)}</span>
+                          <span>${result.msPrice.toFixed(4)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">外汇收益</span>
                           <span className="text-green-500">{formatCurrency(result.userProfit)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">卖AF收益</span>
-                          <span className="text-blue-500">{formatCurrency(result.afSellingRevenueUsdc)}</span>
+                          <span className="text-muted-foreground">卖MS收益</span>
+                          <span className="text-blue-500">{formatCurrency(result.msSellingRevenueUsdc)}</span>
                         </div>
                         <div className="flex justify-between font-medium">
                           <span className="text-muted-foreground">总收益</span>
-                          <span className="text-yellow-500">{formatCurrency(result.userProfit + result.afSellingRevenueUsdc)}</span>
+                          <span className="text-yellow-500">{formatCurrency(result.userProfit + result.msSellingRevenueUsdc)}</span>
                         </div>
                       </div>
                     </div>

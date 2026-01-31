@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { afxConfigSchema } from "@shared/schema";
+import { nmsConfigSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -21,7 +21,7 @@ export async function registerRoutes(
   // Save configuration
   app.post("/api/config", async (req, res) => {
     try {
-      const parseResult = afxConfigSchema.safeParse(req.body);
+      const parseResult = nmsConfigSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ error: "Invalid configuration", details: parseResult.error });
       }
