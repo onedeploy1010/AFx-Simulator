@@ -746,9 +746,9 @@ export interface DurationComparisonResult {
   totalHeldAf: number;
   // Revenue metrics (USDC)
   afArbitrageRevenue: number;  // USDC from selling AF on secondary market
-  heldAfValue: number;         // USDC value of held AF
+  heldAfValue: number;         // USDC value of held AF (unrealized)
   tradingProfit: number;       // Forex trading income
-  totalRevenue: number;        // afArbitrageRevenue + heldAfValue + tradingProfit
+  totalRevenue: number;        // afArbitrageRevenue + tradingProfit (realized only)
   netProfit: number;           // totalRevenue - investment amount
   // Efficiency metrics
   avgDailyIncome: number;      // totalRevenue / days
@@ -820,7 +820,7 @@ export function simulateDurationComparison(
       : initialPool.afPrice;
 
     const heldAfValue = totalHeldAf * finalAfPrice;
-    const totalRevenue = afArbitrageRevenue + heldAfValue + tradingProfit;
+    const totalRevenue = afArbitrageRevenue + tradingProfit; // realized only
     const netProfit = totalRevenue - amount;
     const avgDailyIncome = days > 0 ? totalRevenue / days : 0;
     const totalRoi = amount > 0 ? (netProfit / amount) * 100 : 0;
