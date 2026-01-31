@@ -59,22 +59,22 @@ export default function ConfigPage() {
       </div>
 
       <Tabs defaultValue="core" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-2">
-          <TabsTrigger value="core" data-testid="tab-core">
-            <Settings className="h-4 w-4 mr-2" />
+        <TabsList className="grid w-full grid-cols-4 h-auto gap-1 md:gap-2">
+          <TabsTrigger value="core" data-testid="tab-core" className="text-xs md:text-sm px-1 md:px-3 py-2">
+            <Settings className="h-4 w-4 mr-1 md:mr-2 hidden sm:inline-block" />
             核心参数
           </TabsTrigger>
-          <TabsTrigger value="packages" data-testid="tab-packages">
-            <Coins className="h-4 w-4 mr-2" />
+          <TabsTrigger value="packages" data-testid="tab-packages" className="text-xs md:text-sm px-1 md:px-3 py-2">
+            <Coins className="h-4 w-4 mr-1 md:mr-2 hidden sm:inline-block" />
             {config.simulationMode === 'package' ? '配套设置' : '天数设置'}
           </TabsTrigger>
-          <TabsTrigger value="trading" data-testid="tab-trading">
-            <TrendingUp className="h-4 w-4 mr-2" />
+          <TabsTrigger value="trading" data-testid="tab-trading" className="text-xs md:text-sm px-1 md:px-3 py-2">
+            <TrendingUp className="h-4 w-4 mr-1 md:mr-2 hidden sm:inline-block" />
             交易流向
           </TabsTrigger>
-          <TabsTrigger value="broker" data-testid="tab-broker">
-            <Users className="h-4 w-4 mr-2" />
-            经纪人系统
+          <TabsTrigger value="broker" data-testid="tab-broker" className="text-xs md:text-sm px-1 md:px-3 py-2">
+            <Users className="h-4 w-4 mr-1 md:mr-2 hidden sm:inline-block" />
+            经纪人
           </TabsTrigger>
         </TabsList>
 

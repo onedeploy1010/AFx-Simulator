@@ -249,22 +249,28 @@ export default function TradingPage() {
               <CardDescription>全网入金进入量化交易池，按AF持有权重分润</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-3 rounded-md border">
-                  <p className="text-sm text-muted-foreground">全网总入金</p>
-                  <p className="text-lg font-semibold">{formatCurrency(totalDeposit)}</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div className="p-2.5 md:p-3 rounded-md border">
+                  <p className="text-xs md:text-sm text-muted-foreground">全网总入金</p>
+                  <p className="text-base md:text-lg font-semibold">{formatCurrency(totalDeposit)}</p>
                 </div>
-                <div className="p-3 rounded-md border">
-                  <p className="text-sm text-muted-foreground">交易池本金 ({config.depositTradingPoolRatio}%)</p>
-                  <p className="text-lg font-semibold">{formatCurrency(poolCapital)}</p>
+                <div className="p-2.5 md:p-3 rounded-md border">
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    <span className="md:hidden">交易池 ({config.depositTradingPoolRatio}%)</span>
+                    <span className="hidden md:inline">交易池本金 ({config.depositTradingPoolRatio}%)</span>
+                  </p>
+                  <p className="text-base md:text-lg font-semibold">{formatCurrency(poolCapital)}</p>
                 </div>
-                <div className="p-3 rounded-md border">
-                  <p className="text-sm text-muted-foreground">日总利润 ({config.poolDailyProfitRate}%)</p>
-                  <p className="text-lg font-semibold text-green-500">{formatCurrency(dailyPoolProfit)}</p>
+                <div className="p-2.5 md:p-3 rounded-md border">
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    <span className="md:hidden">日利润 ({config.poolDailyProfitRate}%)</span>
+                    <span className="hidden md:inline">日总利润 ({config.poolDailyProfitRate}%)</span>
+                  </p>
+                  <p className="text-base md:text-lg font-semibold text-green-500">{formatCurrency(dailyPoolProfit)}</p>
                 </div>
-                <div className="p-3 rounded-md border">
-                  <p className="text-sm text-muted-foreground">全网未提取AF</p>
-                  <p className="text-lg font-semibold">{formatNumber(totalUnclaimedAf)} AF</p>
+                <div className="p-2.5 md:p-3 rounded-md border">
+                  <p className="text-xs md:text-sm text-muted-foreground">未提取AF</p>
+                  <p className="text-base md:text-lg font-semibold">{formatNumber(totalUnclaimedAf)} AF</p>
                 </div>
               </div>
               {/* Per-order weight and share */}
@@ -277,15 +283,32 @@ export default function TradingPage() {
                       const weight = totalUnclaimedAf > 0 ? unclaimed / totalUnclaimedAf : 0;
                       const share = dailyPoolProfit * weight;
                       return (
-                        <div key={order.id} className="flex items-center justify-between p-2 rounded border text-sm">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">#{order.id.slice(-6)}</Badge>
-                            <span className="text-muted-foreground">{formatCurrency(order.amount)}</span>
+                        <div key={order.id} className="p-2 rounded border text-sm space-y-2 md:space-y-0">
+                          {/* Desktop: single row */}
+                          <div className="hidden md:flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">#{order.id.slice(-6)}</Badge>
+                              <span className="text-muted-foreground">{formatCurrency(order.amount)}</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="text-muted-foreground">AF: {formatNumber(unclaimed)}</span>
+                              <span className="text-muted-foreground">权重: {(weight * 100).toFixed(1)}%</span>
+                              <span className="font-medium text-green-500">日分润: {formatCurrency(share)}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <span className="text-muted-foreground">AF: {formatNumber(unclaimed)}</span>
-                            <span className="text-muted-foreground">权重: {(weight * 100).toFixed(1)}%</span>
-                            <span className="font-medium text-green-500">日分润: {formatCurrency(share)}</span>
+                          {/* Mobile: stacked layout */}
+                          <div className="md:hidden">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">#{order.id.slice(-6)}</Badge>
+                                <span className="text-muted-foreground">{formatCurrency(order.amount)}</span>
+                              </div>
+                              <span className="font-medium text-green-500">{formatCurrency(share)}/天</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>持有 AF: {formatNumber(unclaimed)}</span>
+                              <span>权重: {(weight * 100).toFixed(1)}%</span>
+                            </div>
                           </div>
                         </div>
                       );

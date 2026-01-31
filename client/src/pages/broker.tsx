@@ -330,7 +330,8 @@ export default function BrokerPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border overflow-auto max-h-[500px]">
+              {/* Desktop: full table */}
+              <div className="hidden md:block rounded-md border overflow-auto max-h-[500px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -372,6 +373,34 @@ export default function BrokerPage() {
                   </TableBody>
                 </Table>
               </div>
+              {/* Mobile: card list */}
+              <div className="md:hidden space-y-2 max-h-[500px] overflow-auto">
+                {layerIncome.layers.map(l => (
+                  <div key={l.layer} className={`p-2.5 rounded-md border text-sm ${!l.accessible ? "opacity-50" : ""}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={l.accessible ? "default" : "outline"} className="text-xs">L{l.layer}</Badge>
+                        <span className="text-xs text-muted-foreground">{l.rate}%</span>
+                      </div>
+                      <span className={`text-xs ${l.accessible ? "" : "text-muted-foreground"}`}>
+                        {l.accessible ? "可访问" : "紧缩"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>释放: {formatNumber(l.afReleased)} AF</span>
+                      <span className={l.accessible ? "text-green-500 font-medium" : "text-muted-foreground"}>
+                        {l.accessible ? formatCurrency(l.earnings * aamPool.afPrice) : `(${formatNumber(l.earnings)} AF)`}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="p-2.5 rounded-md bg-muted text-sm font-semibold">
+                  <div className="flex items-center justify-between">
+                    <span>合计</span>
+                    <span className="text-green-500">{formatNumber(layerIncome.totalEarnings)} AF ≈ {formatCurrency(layerIncome.totalEarnings * aamPool.afPrice)}</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -412,7 +441,8 @@ export default function BrokerPage() {
               <CardDescription>各等级可获得的层级AF收益</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border overflow-auto">
+              {/* Desktop: table */}
+              <div className="hidden md:block rounded-md border overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -437,6 +467,24 @@ export default function BrokerPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+              {/* Mobile: compact cards */}
+              <div className="md:hidden space-y-2">
+                {levelComparisonAf.map(lc => (
+                  <div key={lc.level} className={`p-2.5 rounded-md border text-sm ${lc.level === selectedLevel ? "bg-muted" : ""}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={lc.level === selectedLevel ? "default" : "outline"} className="text-xs">{lc.level}</Badge>
+                        <span className="text-xs text-muted-foreground">1-{lc.maxLayer} 层</span>
+                      </div>
+                      <span className="font-medium text-green-500">{formatCurrency(lc.earningsUsdc)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>AF: {formatNumber(lc.earnings)}</span>
+                      <span>紧缩: {formatNumber(lc.compressed)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -542,7 +590,8 @@ export default function BrokerPage() {
               <CardDescription>假设每级的下级为前一级（V1无下级）</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border overflow-auto">
+              {/* Desktop: table */}
+              <div className="hidden md:block rounded-md border overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -568,6 +617,20 @@ export default function BrokerPage() {
                   </TableBody>
                 </Table>
               </div>
+              {/* Mobile: compact cards */}
+              <div className="md:hidden space-y-2">
+                {levelComparisonDividend.map(lc => (
+                  <div key={lc.level} className={`p-2.5 rounded-md border text-sm ${lc.level === selectedLevel ? "bg-muted" : ""}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={lc.level === selectedLevel ? "default" : "outline"} className="text-xs">{lc.level}</Badge>
+                        <span className="text-xs text-muted-foreground">{lc.brokerRate}% - {lc.subRate}% = {lc.diffRate}%</span>
+                      </div>
+                      <span className="font-medium text-green-500">{formatCurrency(lc.earnings)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -586,7 +649,9 @@ export default function BrokerPage() {
             </CardHeader>
             <CardContent>
               {hasOrders ? (
-                <div className="rounded-md border overflow-auto max-h-[400px]">
+                <>
+                {/* Desktop: table */}
+                <div className="hidden md:block rounded-md border overflow-auto max-h-[400px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -625,6 +690,36 @@ export default function BrokerPage() {
                     </TableBody>
                   </Table>
                 </div>
+                {/* Mobile: card list */}
+                <div className="md:hidden space-y-2 max-h-[400px] overflow-auto">
+                  {Array.from({ length: 20 }, (_, i) => {
+                    const layerOrders = stakingOrders.filter((_, idx) => idx % 20 === i);
+                    const layerAf = afReleasedPerLayer[i];
+                    return (
+                      <div key={i} className="p-2.5 rounded-md border text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={i < getMaxLayer(selectedLevel, config) ? "default" : "outline"} className="text-xs">
+                              L{i + 1}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {layerOrders.length > 0
+                                ? layerOrders.map(o => `#${o.id.slice(-4)}`).join(', ')
+                                : "—"
+                              }
+                            </span>
+                          </div>
+                          <span className="text-xs font-medium">{formatCurrency(layerOrders.reduce((s, o) => s + o.amount, 0))}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>AF: {formatNumber(layerAf, 4)}</span>
+                          <span>{formatCurrency(layerAf * aamPool.afPrice)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                </>
               ) : (
                 <div className="p-4 rounded-md bg-muted text-center text-muted-foreground">
                   <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
@@ -680,7 +775,8 @@ export default function BrokerPage() {
                 </div>
 
                 {/* V1-V6 综合收益对比 */}
-                <div className="rounded-md border overflow-auto">
+                {/* Desktop: table */}
+                <div className="hidden md:block rounded-md border overflow-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -708,6 +804,26 @@ export default function BrokerPage() {
                       })}
                     </TableBody>
                   </Table>
+                </div>
+                {/* Mobile: compact cards */}
+                <div className="md:hidden space-y-2">
+                  {BROKER_LEVELS.map((level, idx) => {
+                    const afIncome = levelComparisonAf[idx];
+                    const divIncome = levelComparisonDividend[idx];
+                    const total = afIncome.earningsUsdc + divIncome.earnings;
+                    return (
+                      <div key={level} className={`p-2.5 rounded-md border text-sm ${level === selectedLevel ? "bg-muted" : ""}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <Badge variant={level === selectedLevel ? "default" : "outline"} className="text-xs">{level}</Badge>
+                          <span className="font-medium text-green-500">{formatCurrency(total)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>AF: {formatCurrency(afIncome.earningsUsdc)}</span>
+                          <span>分红: {formatCurrency(divIncome.earnings)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </CardContent>
