@@ -807,19 +807,12 @@ export function simulateDurationComparison(
       totalHeldAf = last.afInSystem;
     }
 
-    // Use actual per-day AF selling revenue from simulation (correct price + burn deduction)
-    const dailySims = sim.dailySimulations;
-    let afArbitrageRevenue = 0;
-    for (const ds of dailySims) {
-      afArbitrageRevenue += ds.afSellingRevenueUsdc;
-    }
+    // Use initial AF price for all valuation (fair comparison across durations)
+    const baseAfPrice = initialPool.afPrice;
+    const afArbitrageRevenue = totalWithdrawnAf * (1 - config.afExitBurnRatio / 100) * baseAfPrice;
+    const finalAfPrice = baseAfPrice;
 
-    // Final AF price from simulation (after all pool operations)
-    const finalAfPrice = dailySims.length > 0
-      ? dailySims[dailySims.length - 1].afPrice
-      : initialPool.afPrice;
-
-    const heldAfValue = totalHeldAf * finalAfPrice;
+    const heldAfValue = totalHeldAf * baseAfPrice;
     const totalRevenue = afArbitrageRevenue + tradingProfit; // realized only
     const netProfit = totalRevenue - amount;
     const avgDailyIncome = days > 0 ? totalRevenue / days : 0;
