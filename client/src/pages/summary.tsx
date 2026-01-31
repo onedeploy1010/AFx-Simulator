@@ -457,6 +457,16 @@ export default function SummaryPage() {
                     </CardHeader>
                     <CardContent className="space-y-1">
                       <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">总收益率</span>
+                        <span className={r.totalRoi >= 0 ? 'text-green-500' : 'text-red-500'}>
+                          {formatPercent(r.totalRoi)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">月均利息</span>
+                        <span>{formatCurrency(r.netProfit / 12)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">月ROI</span>
                         <span className={r.monthlyRoi >= 0 ? 'text-green-500' : 'text-red-500'}>
                           {formatPercent(r.monthlyRoi)}
@@ -489,6 +499,8 @@ export default function SummaryPage() {
                           <TableHead className="text-right">交易收益</TableHead>
                           <TableHead className="text-right">总收益</TableHead>
                           <TableHead className="text-right">净利润</TableHead>
+                          <TableHead className="text-right">总收益率</TableHead>
+                          <TableHead className="text-right">月均利息</TableHead>
                           <TableHead className="text-right">日均收益</TableHead>
                           <TableHead className="text-right">月ROI</TableHead>
                         </TableRow>
@@ -507,6 +519,10 @@ export default function SummaryPage() {
                             <TableCell className={`text-right font-medium ${r.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                               {r.netProfit >= 0 ? '+' : ''}{formatCurrency(r.netProfit)}
                             </TableCell>
+                            <TableCell className={`text-right font-medium ${r.totalRoi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {formatPercent(r.totalRoi)}
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(r.netProfit / 12)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(r.avgDailyIncome)}</TableCell>
                             <TableCell className={`text-right font-medium ${r.monthlyRoi >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                               {formatPercent(r.monthlyRoi)}

@@ -753,6 +753,7 @@ export interface DurationComparisonResult {
   // Efficiency metrics
   avgDailyIncome: number;      // totalRevenue / days
   monthlyRoi: number;          // (netProfit / amount) / days * 30 * 100
+  totalRoi: number;            // (netProfit / amount) * 100
   finalAfPrice: number;
 }
 
@@ -794,7 +795,6 @@ export function simulateDurationComparison(
     let tradingProfit = 0;
     let totalAfReleased = 0;
     let totalHeldAf = 0;
-    let finalAfPrice = initialPool.afPrice;
 
     for (const d of details) {
       totalWithdrawnAf += d.withdrawnAf;
@@ -805,14 +805,25 @@ export function simulateDurationComparison(
       const last = details[details.length - 1];
       totalAfReleased = last.cumAfReleased;
       totalHeldAf = last.afInSystem;
-      finalAfPrice = last.afPrice;
     }
 
-    const afArbitrageRevenue = totalWithdrawnAf * finalAfPrice;
+    // Use actual per-day AF selling revenue from simulation (correct price + burn deduction)
+    const dailySims = sim.dailySimulations;
+    let afArbitrageRevenue = 0;
+    for (const ds of dailySims) {
+      afArbitrageRevenue += ds.afSellingRevenueUsdc;
+    }
+
+    // Final AF price from simulation (after all pool operations)
+    const finalAfPrice = dailySims.length > 0
+      ? dailySims[dailySims.length - 1].afPrice
+      : initialPool.afPrice;
+
     const heldAfValue = totalHeldAf * finalAfPrice;
     const totalRevenue = afArbitrageRevenue + heldAfValue + tradingProfit;
     const netProfit = totalRevenue - amount;
     const avgDailyIncome = days > 0 ? totalRevenue / days : 0;
+    const totalRoi = amount > 0 ? (netProfit / amount) * 100 : 0;
     const monthlyRoi = amount > 0 && days > 0 ? (netProfit / amount) / days * 30 * 100 : 0;
 
     results.push({
@@ -830,6 +841,7 @@ export function simulateDurationComparison(
       netProfit,
       avgDailyIncome,
       monthlyRoi,
+      totalRoi,
       finalAfPrice,
     });
   }
