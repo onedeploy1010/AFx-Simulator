@@ -148,9 +148,9 @@ export default function ReleasePage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部订单 ({stakingOrders.length}笔)</SelectItem>
-              {stakingOrders.map((order) => (
+              {stakingOrders.map((order, idx) => (
                 <SelectItem key={order.id} value={order.id}>
-                  {order.mode === 'days' ? `${order.durationDays}天` : `${order.packageTier} USDC`} - #{order.id.slice(-6)}
+                  #{idx + 1} {order.mode === 'days' ? `${order.durationDays}天` : `${order.packageTier} USDC`} ({formatCurrency(order.amount)})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -188,18 +188,22 @@ export default function ReleasePage() {
         </Card>
       )}
 
-      {selectedOrderId !== "all" && (
-        <Card>
-          <CardContent className="py-3">
-            <p className="text-sm">
-              当前查看: <Badge variant="default">{filteredOrders[0]?.packageTier} USDC</Badge>
-              <span className="text-muted-foreground ml-2">
-                订单 #{selectedOrderId.slice(-6)} | 质押 {filteredOrders[0]?.daysStaked} 天
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {selectedOrderId !== "all" && (() => {
+        const orderIdx = stakingOrders.findIndex(o => o.id === selectedOrderId);
+        const order = filteredOrders[0];
+        return (
+          <Card>
+            <CardContent className="py-3">
+              <p className="text-sm">
+                当前查看: <Badge variant="default">{formatCurrency(order?.amount ?? 0)}</Badge>
+                <span className="text-muted-foreground ml-2">
+                  订单 #{orderIdx + 1} | {order?.mode === 'days' ? `${order.durationDays}天模式` : `${order?.daysStaked}天质押`} | Day {order?.startDay ?? 0} 入单
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {stakingOrders.length === 0 ? (
         <Card>
@@ -404,19 +408,22 @@ export default function ReleasePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {orderProgress.map((progress) => (
+                {orderProgress.map((progress, idx) => {
+                  const globalIdx = stakingOrders.findIndex(o => o.id === progress.orderId);
+                  const orderNum = globalIdx >= 0 ? globalIdx + 1 : idx + 1;
+                  return (
                   <div key={progress.orderId} className="p-4 rounded-md border space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <Badge variant={progress.isComplete ? "default" : "secondary"}>
-                          {progress.packageTier} USDC
+                          #{orderNum}
                         </Badge>
-                        <Badge variant="outline">{progress.mode === 'days' ? '天数' : '配套'}</Badge>
+                        <Badge variant="outline">
+                          {formatCurrency(progress.amount)}
+                        </Badge>
+                        <Badge variant="outline">{progress.mode === 'days' ? `${progress.totalDays}天` : '配套'}</Badge>
                         <span className="text-sm text-muted-foreground">
-                          订单 #{progress.orderId.slice(-6)}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          起始天 Day {progress.startDay}
+                          Day {progress.startDay} 入单
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -560,7 +567,8 @@ export default function ReleasePage() {
                       );
                     })()}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

@@ -8,12 +8,11 @@ import { Droplets, TrendingUp, Flame, RefreshCw, DollarSign, Coins, Activity } f
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function AAMPage() {
-  const { config, stakingOrders, aamPool, resetAAMPool } = useConfigStore();
+  const { config, stakingOrders, aamPool, resetAAMPool, currentSimulationDay } = useConfigStore();
 
-  // Calculate simulation days from longest order duration
+  // Use max of currentSimulationDay and order-based duration for full projection
   const simDays = useMemo(() => {
-    if (stakingOrders.length === 0) return 30;
-    let maxDays = 0;
+    let maxDays = currentSimulationDay;
     for (const order of stakingOrders) {
       const orderMode = order.mode || 'package';
       const startDay = order.startDay || 0;
@@ -23,8 +22,8 @@ export default function AAMPage() {
         maxDays = Math.max(maxDays, startDay + (order.daysStaked || 30));
       }
     }
-    return Math.max(30, maxDays);
-  }, [stakingOrders]);
+    return Math.max(1, maxDays);
+  }, [stakingOrders, currentSimulationDay]);
 
   const simulationResults = useMemo(() => {
     if (stakingOrders.length === 0) return [];
@@ -90,6 +89,7 @@ export default function AAMPage() {
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
             {stakingOrders.length} 笔订单
           </Badge>
+          <Badge variant="outline">Day {simDays}</Badge>
           <Button variant="outline" onClick={resetAAMPool} data-testid="button-reset-pool">
             <RefreshCw className="h-4 w-4 mr-2" />
             重置池状态

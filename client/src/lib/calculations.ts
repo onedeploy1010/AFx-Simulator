@@ -731,6 +731,112 @@ export function calculateOrderAfSellingRevenue(
   };
 }
 
+// ============================================================
+// Duration comparison calculator
+// ============================================================
+
+export interface DurationComparisonResult {
+  days: number;
+  releaseMultiplier: number;
+  tradingFeeRate: number;
+  profitSharePercent: number;
+  // AF metrics
+  totalAfReleased: number;
+  totalWithdrawnAf: number;
+  totalHeldAf: number;
+  // Revenue metrics (USDC)
+  afArbitrageRevenue: number;  // USDC from selling AF on secondary market
+  heldAfValue: number;         // USDC value of held AF
+  tradingProfit: number;       // Forex trading income
+  totalRevenue: number;        // afArbitrageRevenue + heldAfValue + tradingProfit
+  netProfit: number;           // totalRevenue - investment amount
+  // Efficiency metrics
+  avgDailyIncome: number;      // totalRevenue / days
+  monthlyRoi: number;          // (netProfit / amount) / days * 30 * 100
+  finalAfPrice: number;
+}
+
+export function simulateDurationComparison(
+  amount: number,
+  withdrawPercent: number,
+  config: AFxConfig,
+  initialPool: AAMPool
+): DurationComparisonResult[] {
+  const results: DurationComparisonResult[] = [];
+
+  for (const dc of config.daysConfigs) {
+    const days = dc.days;
+
+    // Create a virtual staking order for this duration
+    const virtualOrder: StakingOrder = {
+      id: `compare-${days}`,
+      amount,
+      mode: 'days',
+      durationDays: days,
+      withdrawPercent,
+      startDay: 0,
+      packageTier: 0,
+      startDate: '',
+      daysStaked: days,
+      afReleased: 0,
+      tradingCapital: 0,
+      totalAfToRelease: 0,
+      afWithdrawn: 0,
+      afKeptInSystem: 0,
+    };
+
+    // Run simulation with a fresh copy of initialPool for fair comparison
+    const sim = runSimulationWithDetails([virtualOrder], config, days, { ...initialPool });
+    const details = sim.orderDailyDetails.get(virtualOrder.id) || [];
+
+    // Aggregate from daily details
+    let totalWithdrawnAf = 0;
+    let tradingProfit = 0;
+    let totalAfReleased = 0;
+    let totalHeldAf = 0;
+    let finalAfPrice = initialPool.afPrice;
+
+    for (const d of details) {
+      totalWithdrawnAf += d.withdrawnAf;
+      tradingProfit += d.forexIncome;
+    }
+
+    if (details.length > 0) {
+      const last = details[details.length - 1];
+      totalAfReleased = last.cumAfReleased;
+      totalHeldAf = last.afInSystem;
+      finalAfPrice = last.afPrice;
+    }
+
+    const afArbitrageRevenue = totalWithdrawnAf * finalAfPrice;
+    const heldAfValue = totalHeldAf * finalAfPrice;
+    const totalRevenue = afArbitrageRevenue + heldAfValue + tradingProfit;
+    const netProfit = totalRevenue - amount;
+    const avgDailyIncome = days > 0 ? totalRevenue / days : 0;
+    const monthlyRoi = amount > 0 && days > 0 ? (netProfit / amount) / days * 30 * 100 : 0;
+
+    results.push({
+      days,
+      releaseMultiplier: dc.releaseMultiplier,
+      tradingFeeRate: dc.tradingFeeRate,
+      profitSharePercent: dc.profitSharePercent,
+      totalAfReleased,
+      totalWithdrawnAf,
+      totalHeldAf,
+      afArbitrageRevenue,
+      heldAfValue,
+      tradingProfit,
+      totalRevenue,
+      netProfit,
+      avgDailyIncome,
+      monthlyRoi,
+      finalAfPrice,
+    });
+  }
+
+  return results;
+}
+
 // Format number for display
 export function formatNumber(num: number, decimals: number = 2): string {
   return num.toLocaleString('en-US', {

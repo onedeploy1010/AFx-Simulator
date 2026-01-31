@@ -29,9 +29,13 @@ export default function TradingPage() {
         const daysConfig = config.daysConfigs?.find(d => d.days === order.durationDays);
         if (!daysConfig) return null;
 
-        const tradingCapital = (order.afKeptInSystem || 0) * aamPool.afPrice;
+        // Derive trading capital from simulation results (stored order.afKeptInSystem is always 0)
+        const details = orderDailyDetails.get(order.id);
+        const lastDetail = details && details.length > 0 ? details[details.length - 1] : null;
+        const tradingCapital = lastDetail ? lastDetail.tradingCapital : 0;
+
         const dailyVolume = tradingCapital * (config.dailyTradingVolumePercent / 100);
-        const forexDetail = calculateOrderDailyForexProfit(order, config, aamPool.afPrice);
+        const grossProfit = dailyVolume * (daysConfig.tradingProfitRate / 100);
 
         const simulation = calculateTradingSimulation(
           dailyVolume,
@@ -52,8 +56,8 @@ export default function TradingPage() {
           feeRate: daysConfig.tradingFeeRate,
           profitRate: daysConfig.tradingProfitRate,
           profitSharePercent: daysConfig.profitSharePercent,
-          grossProfit: forexDetail.grossProfit,
-          netProfit: forexDetail.netProfit,
+          grossProfit,
+          netProfit: grossProfit - simulation.tradingFee,
           ...simulation,
         };
       }
@@ -89,7 +93,7 @@ export default function TradingPage() {
         ...simulation,
       };
     }).filter(Boolean);
-  }, [stakingOrders, config, aamPool.afPrice]);
+  }, [stakingOrders, config, aamPool.afPrice, orderDailyDetails]);
 
   const totals = useMemo(() => {
     if (orderSimulations.length === 0) return null;
