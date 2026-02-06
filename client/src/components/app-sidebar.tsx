@@ -30,48 +30,56 @@ const menuItems = [
     url: "/staking",
     icon: Coins,
     description: "叠加多笔铸造订单",
+    priceSource: undefined, // always visible
   },
   {
     title: "释放进度",
     url: "/release",
     icon: TrendingUp,
     description: "查看 MS 释放情况",
+    priceSource: undefined,
   },
   {
     title: "交易模拟",
     url: "/trading",
     icon: BarChart3,
     description: "手续费与利润分配",
+    priceSource: undefined,
   },
   {
     title: "AAM 池监控",
     url: "/aam",
     icon: Droplets,
     description: "LP 池与币价变化",
+    priceSource: 'aam' as const, // only when AAM selected
   },
   {
     title: "CLMM 模拟",
     url: "/clmm",
     icon: Target,
     description: "集中流动性策略模拟",
+    priceSource: 'clmm' as const, // only when CLMM selected
   },
   {
     title: "经纪人系统",
     url: "/broker",
     icon: Users,
     description: "V1-V6 推广收益",
+    priceSource: undefined,
   },
   {
     title: "总收益统计",
     url: "/summary",
     icon: ClipboardList,
     description: "各订单总收益汇总",
+    priceSource: undefined,
   },
   {
     title: "参数配置",
     url: "/",
     icon: Settings,
     description: "统一修改所有参数",
+    priceSource: undefined,
   },
 ];
 
@@ -97,7 +105,9 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-sidebar-foreground/50">模拟模块</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
+              {menuItems
+                .filter((item) => !item.priceSource || item.priceSource === (config.priceSource ?? 'clmm'))
+                .map((item) => {
                 const isActive = location === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -118,11 +128,17 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-sidebar-foreground/50">当前模式</span>
+          <span className="text-xs text-sidebar-foreground/50">模拟模式</span>
           <Badge variant={config.simulationMode === 'days' ? 'default' : 'secondary'} className="text-xs">
             {config.simulationMode === 'days' ? '天数模式' : '配套模式'}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-sidebar-foreground/50">币价来源</span>
+          <Badge variant={config.priceSource === 'clmm' ? 'default' : 'secondary'} className="text-xs">
+            {config.priceSource === 'clmm' ? 'CLMM' : 'AAM'}
           </Badge>
         </div>
       </SidebarFooter>

@@ -52,6 +52,7 @@ const mergeWithDefaults = (savedConfig: Partial<NMSConfig>): NMSConfig => {
 
 interface ConfigStore {
   config: NMSConfig;
+  savedDefaults: NMSConfig | null; // User-saved custom defaults
   stakingOrders: StakingOrder[];
   aamPool: AAMPool;
   currentSimulationDay: number;
@@ -60,6 +61,8 @@ interface ConfigStore {
   updateDaysConfig: (days: number, updates: Partial<DaysConfig>) => void;
   resetConfig: () => void;
   resetAll: () => void;
+  saveAsDefaults: () => void; // Save current config as custom defaults
+  clearSavedDefaults: () => void; // Revert to system defaults
   addStakingOrder: (order: Omit<StakingOrder, "id">) => void;
   removeStakingOrder: (id: string) => void;
   clearStakingOrders: () => void;
@@ -84,6 +87,7 @@ export const useConfigStore = create<ConfigStore>()(
   persist(
     (set, get) => ({
       config: defaultConfig,
+      savedDefaults: null,
       stakingOrders: [],
       aamPool: initialAAMPool,
       currentSimulationDay: 0,
@@ -129,14 +133,26 @@ export const useConfigStore = create<ConfigStore>()(
           },
         })),
 
-      resetConfig: () => set({ config: defaultConfig, currentSimulationDay: 0 }),
-
-      resetAll: () => set({
-        config: defaultConfig,
-        stakingOrders: [],
-        aamPool: getInitialAAMPool(defaultConfig),
-        currentSimulationDay: 0,
+      resetConfig: () => set((state) => {
+        const defaults = state.savedDefaults ?? defaultConfig;
+        return { config: defaults, currentSimulationDay: 0 };
       }),
+
+      resetAll: () => set((state) => {
+        const defaults = state.savedDefaults ?? defaultConfig;
+        return {
+          config: defaults,
+          stakingOrders: [],
+          aamPool: getInitialAAMPool(defaults),
+          currentSimulationDay: 0,
+        };
+      }),
+
+      saveAsDefaults: () => set((state) => ({
+        savedDefaults: { ...state.config },
+      })),
+
+      clearSavedDefaults: () => set({ savedDefaults: null }),
 
       addStakingOrder: (order) =>
         set((state) => {
@@ -256,6 +272,7 @@ export const useConfigStore = create<ConfigStore>()(
           ...currentState,
           ...persisted,
           config: mergedConfig,
+          savedDefaults: persisted.savedDefaults ?? null,
           aamPool,
           stakingOrders: migratedOrders,
           currentSimulationDay: persisted.currentSimulationDay ?? 0,

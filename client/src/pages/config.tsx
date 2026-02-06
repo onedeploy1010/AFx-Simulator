@@ -22,11 +22,11 @@ import { useConfigStore } from "@/hooks/use-config";
 import { PACKAGE_TIERS, DAYS_MODE_TIERS } from "@shared/schema";
 import type { NMSConfig, PackageConfig, DaysConfig } from "@shared/schema";
 import { calculateInitialPrice, calculateDepositReserveRatio } from "@/lib/calculations";
-import { RotateCcw, Save, Settings, Coins, TrendingUp, Users, LineChart } from "lucide-react";
+import { RotateCcw, Save, Settings, Coins, TrendingUp, Users, LineChart, Star, StarOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ConfigPage() {
-  const { config, setConfig, resetConfig, resetAll, updatePackageConfig, updateDaysConfig, stakingOrders } = useConfigStore();
+  const { config, setConfig, resetConfig, resetAll, updatePackageConfig, updateDaysConfig, stakingOrders, saveAsDefaults, clearSavedDefaults, savedDefaults } = useConfigStore();
   const { toast } = useToast();
 
   // Dialog state for parameter change confirmation
@@ -85,6 +85,22 @@ export default function ConfigPage() {
     });
   };
 
+  const handleSaveAsDefaults = () => {
+    saveAsDefaults();
+    toast({
+      title: "已设为默认参数",
+      description: "当前参数已保存为默认值，今后重置将恢复到此配置",
+    });
+  };
+
+  const handleClearDefaults = () => {
+    clearSavedDefaults();
+    toast({
+      title: "已恢复系统默认",
+      description: "自定义默认值已清除，重置将恢复到系统初始值",
+    });
+  };
+
   // Ensure values have defaults to prevent undefined
   const depositLpRatio = config.depositLpRatio ?? 30;
   const depositBuybackRatio = config.depositBuybackRatio ?? 20;
@@ -99,7 +115,17 @@ export default function ConfigPage() {
           <h1 className="text-xl md:text-2xl font-bold">参数配置</h1>
           <p className="text-muted-foreground">统一修改所有参数与公式来源</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {savedDefaults ? (
+            <Button variant="ghost" size="sm" onClick={handleClearDefaults} data-testid="button-clear-defaults">
+              <StarOff className="h-4 w-4 mr-1" />
+              清除默认
+            </Button>
+          ) : null}
+          <Button variant="outline" onClick={handleSaveAsDefaults} data-testid="button-save-defaults">
+            <Star className="h-4 w-4 mr-2" />
+            设为默认
+          </Button>
           <Button variant="outline" onClick={handleReset} data-testid="button-reset-config">
             <RotateCcw className="h-4 w-4 mr-2" />
             重置
