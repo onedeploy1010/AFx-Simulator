@@ -52,7 +52,7 @@ export default function ReleasePage() {
       totalAfSellingRevenue: simulationResults.reduce((sum, r) => sum + r.msSellingRevenueUsdc, 0),
       totalForexProfit: simulationResults.reduce((sum, r) => sum + r.userProfit, 0),
     };
-  }, [simulationResults, config.initialLpUsdc, config.initialLpMs, aamPool.msPrice]);
+  }, [simulationResults, config, aamPool.msPrice]);
 
   // Build chart data with cumulative values and initial price at day 0
   const chartData = useMemo(() => {
@@ -117,7 +117,7 @@ export default function ReleasePage() {
     }
 
     return data;
-  }, [simulationResults, config.initialLpUsdc, config.initialLpMs, aamPool.msPrice]);
+  }, [simulationResults, config, aamPool.msPrice]);
 
   // Calculate per-order release progress for current simulation day (filtered by selection)
   const orderProgress = useMemo(() => {

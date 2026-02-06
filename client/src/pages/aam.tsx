@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useConfigStore } from "@/hooks/use-config";
 import { runSimulation, formatNumber, formatCurrency, calculateInitialPrice } from "@/lib/calculations";
 import { Droplets, TrendingUp, Flame, RefreshCw, DollarSign, Coins, Activity } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 export default function AAMPage() {
   const { config, stakingOrders, aamPool, resetAAMPool, currentSimulationDay } = useConfigStore();
@@ -38,11 +38,13 @@ export default function AAMPage() {
   const finalTvl = lastDay ? lastDay.poolTotalValue : (aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice);
 
   const poolHistory = useMemo(() => {
+    const isCLMM = config.priceSource === 'clmm';
     if (simulationResults.length === 0) {
       const tvl = aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice;
       return Array.from({ length: 31 }, (_, i) => ({
         day: i,
         price: aamPool.msPrice,
+        aamPrice: aamPool.msPrice,
         usdc: aamPool.usdcBalance,
         af: aamPool.msBalance,
         tvl,
@@ -51,16 +53,17 @@ export default function AAMPage() {
 
     const initialTvl = aamPool.usdcBalance + aamPool.msBalance * aamPool.msPrice;
     return [
-      { day: 0, price: aamPool.msPrice, usdc: aamPool.usdcBalance, af: aamPool.msBalance, tvl: initialTvl },
+      { day: 0, price: aamPool.msPrice, aamPrice: aamPool.msPrice, usdc: aamPool.usdcBalance, af: aamPool.msBalance, tvl: initialTvl },
       ...simulationResults.map(r => ({
         day: r.day,
-        price: r.msPrice,
+        price: r.msPrice, // effective price (CLMM or AAM)
+        aamPrice: isCLMM ? (r.aamPrice ?? r.msPrice) : r.msPrice, // AAM real price
         usdc: r.poolUsdcBalance,
         af: r.poolMsBalance,
         tvl: r.poolTotalValue,
       }))
     ];
-  }, [simulationResults, aamPool]);
+  }, [simulationResults, aamPool, config.priceSource]);
 
   const totals = useMemo(() => {
     if (simulationResults.length === 0) return null;
@@ -86,6 +89,9 @@ export default function AAMPage() {
           <p className="text-muted-foreground">LP 池规模、MS 币价变化与回购销毁</p>
         </div>
         <div className="flex items-center gap-2">
+          <Badge variant={config.priceSource === 'clmm' ? 'default' : 'secondary'} className="text-xs">
+            币价: {config.priceSource === 'clmm' ? 'CLMM' : 'AAM'}
+          </Badge>
           <Badge variant={stakingOrders.length > 0 ? "default" : "secondary"}>
             {stakingOrders.length} 笔订单
           </Badge>
@@ -278,7 +284,11 @@ export default function AAMPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">{simDays}天币价走势</CardTitle>
-          <CardDescription>基于当前配置的币价变化趋势（模拟最终状态）</CardDescription>
+          <CardDescription>
+            {config.priceSource === 'clmm'
+              ? '蓝色实线 = CLMM 有效价格，虚线 = AAM 池价格'
+              : '基于当前配置的币价变化趋势（模拟最终状态）'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[220px] md:h-[300px]">
@@ -303,7 +313,10 @@ export default function AAMPage() {
                     borderColor: 'hsl(var(--border))',
                     borderRadius: '6px',
                   }}
-                  formatter={(value: number) => [`$${value.toFixed(4)}`, 'MS 价格']}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'aamPrice') return [`$${value.toFixed(4)}`, 'AAM 价格'];
+                    return [`$${value.toFixed(4)}`, config.priceSource === 'clmm' ? 'CLMM 有效价格' : 'MS 价格'];
+                  }}
                   labelFormatter={(label) => `Day ${label}`}
                 />
                 <Area
@@ -313,6 +326,16 @@ export default function AAMPage() {
                   fill="hsl(var(--primary) / 0.2)"
                   strokeWidth={2}
                 />
+                {config.priceSource === 'clmm' && (
+                  <Line
+                    type="monotone"
+                    dataKey="aamPrice"
+                    stroke="hsl(var(--chart-4))"
+                    strokeWidth={1.5}
+                    dot={false}
+                    strokeDasharray="5 5"
+                  />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>

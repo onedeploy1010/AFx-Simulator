@@ -1,3 +1,4 @@
+import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -7,21 +8,73 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useConfigStore } from "@/hooks/use-config";
 import { PACKAGE_TIERS, DAYS_MODE_TIERS } from "@shared/schema";
+import type { NMSConfig, PackageConfig, DaysConfig } from "@shared/schema";
 import { calculateInitialPrice, calculateDepositReserveRatio } from "@/lib/calculations";
-import { RotateCcw, Save, Settings, Coins, TrendingUp, Users } from "lucide-react";
+import { RotateCcw, Save, Settings, Coins, TrendingUp, Users, LineChart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ConfigPage() {
-  const { config, setConfig, resetConfig, updatePackageConfig, updateDaysConfig } = useConfigStore();
+  const { config, setConfig, resetConfig, resetAll, updatePackageConfig, updateDaysConfig, stakingOrders } = useConfigStore();
   const { toast } = useToast();
 
+  // Dialog state for parameter change confirmation
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
+
+  // Wrap parameter changes to show reset confirmation when simulation data exists
+  const withResetConfirmation = useCallback((action: () => void) => {
+    if (stakingOrders.length > 0) {
+      pendingAction.current = action;
+      setShowResetDialog(true);
+    } else {
+      action();
+    }
+  }, [stakingOrders.length]);
+
+  const handleResetConfirm = () => {
+    // Execute pending action then reset simulation data
+    if (pendingAction.current) {
+      pendingAction.current();
+      pendingAction.current = null;
+    }
+    resetAll();
+    setShowResetDialog(false);
+    toast({
+      title: "参数已更新",
+      description: "参数已修改，模拟数据已重置为默认值",
+    });
+  };
+
+  const handleResetCancel = () => {
+    // Execute pending action without resetting simulation data
+    if (pendingAction.current) {
+      pendingAction.current();
+      pendingAction.current = null;
+    }
+    setShowResetDialog(false);
+    toast({
+      title: "参数已更新",
+      description: "参数已修改，保留现有模拟数据",
+    });
+  };
+
   const handleReset = () => {
-    resetConfig();
+    resetAll();
     toast({
       title: "配置已重置",
-      description: "所有参数已恢复为默认值",
+      description: "所有参数和模拟数据已恢复为默认值",
     });
   };
 
@@ -89,7 +142,7 @@ export default function ConfigPage() {
                 <Select
                   value={config.simulationMode}
                   onValueChange={(value: 'package' | 'days') =>
-                    setConfig({ simulationMode: value })
+                    withResetConfirmation(() => setConfig({ simulationMode: value }))
                   }
                 >
                   <SelectTrigger data-testid="select-simulation-mode">
@@ -119,7 +172,7 @@ export default function ConfigPage() {
                 <Select
                   value={config.msReleaseMode}
                   onValueChange={(value: 'gold_standard' | 'coin_standard') =>
-                    setConfig({ msReleaseMode: value })
+                    withResetConfirmation(() => setConfig({ msReleaseMode: value }))
                   }
                 >
                   <SelectTrigger data-testid="select-release-mode">
@@ -151,7 +204,7 @@ export default function ConfigPage() {
                   <Switch
                     id="staking-enabled"
                     checked={config.stakingEnabled}
-                    onCheckedChange={(checked) => setConfig({ stakingEnabled: checked })}
+                    onCheckedChange={(checked) => withResetConfirmation(() => setConfig({ stakingEnabled: checked }))}
                     data-testid="switch-staking-enabled"
                   />
                 </div>
@@ -159,7 +212,7 @@ export default function ConfigPage() {
                   <Label>释放开始交易周期 (天): {config.releaseStartsTradingDays}</Label>
                   <Slider
                     value={[config.releaseStartsTradingDays]}
-                    onValueChange={([value]) => setConfig({ releaseStartsTradingDays: value })}
+                    onValueChange={([value]) => withResetConfirmation(() => setConfig({ releaseStartsTradingDays: value }))}
                     min={0}
                     max={30}
                     step={1}
@@ -179,7 +232,7 @@ export default function ConfigPage() {
                 <Select
                   value={config.tradingMode ?? 'individual'}
                   onValueChange={(value: 'individual' | 'dividend_pool') =>
-                    setConfig({ tradingMode: value })
+                    withResetConfirmation(() => setConfig({ tradingMode: value }))
                   }
                 >
                   <SelectTrigger data-testid="select-trading-mode">
@@ -203,7 +256,7 @@ export default function ConfigPage() {
                       <Label>保证金倍数: {config.dividendMarginMultiplier ?? 3}x</Label>
                       <Slider
                         value={[config.dividendMarginMultiplier ?? 3]}
-                        onValueChange={([value]) => setConfig({ dividendMarginMultiplier: value })}
+                        onValueChange={([value]) => withResetConfirmation(() => setConfig({ dividendMarginMultiplier: value }))}
                         min={1}
                         max={10}
                         step={0.5}
@@ -214,7 +267,7 @@ export default function ConfigPage() {
                       <Label>入金交易池比例: {config.depositTradingPoolRatio ?? 50}%</Label>
                       <Slider
                         value={[config.depositTradingPoolRatio ?? 50]}
-                        onValueChange={([value]) => setConfig({ depositTradingPoolRatio: value })}
+                        onValueChange={([value]) => withResetConfirmation(() => setConfig({ depositTradingPoolRatio: value }))}
                         min={0}
                         max={100}
                         step={5}
@@ -225,7 +278,7 @@ export default function ConfigPage() {
                       <Label>交易池日利润率: {config.poolDailyProfitRate ?? 10}%</Label>
                       <Slider
                         value={[config.poolDailyProfitRate ?? 10]}
-                        onValueChange={([value]) => setConfig({ poolDailyProfitRate: value })}
+                        onValueChange={([value]) => withResetConfirmation(() => setConfig({ poolDailyProfitRate: value }))}
                         min={0}
                         max={50}
                         step={1}
@@ -240,6 +293,91 @@ export default function ConfigPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <LineChart className="h-5 w-5" />
+                币价来源设置
+              </CardTitle>
+              <CardDescription>选择模拟使用的币价来源：AAM 池价格或 CLMM 模拟价格</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Select
+                value={config.priceSource ?? 'clmm'}
+                onValueChange={(value: 'aam' | 'clmm') =>
+                  withResetConfirmation(() => setConfig({ priceSource: value }))
+                }
+              >
+                <SelectTrigger data-testid="select-price-source">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aam">AAM 池价格（确定性，由买卖盘驱动）</SelectItem>
+                  <SelectItem value="clmm">CLMM 模拟价格（含波动与漂移）</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="p-3 rounded-md bg-muted">
+                <p className="text-sm text-muted-foreground">
+                  {(config.priceSource ?? 'clmm') === 'aam'
+                    ? "AAM 模式：币价完全由 LP 池的 USDC/MS 比例决定，无随机波动"
+                    : "CLMM 模式：在 AAM 初始价格基础上加入随机波动与漂移，模拟真实市场行为"}
+                </p>
+              </div>
+              {(config.priceSource ?? 'clmm') === 'clmm' && (
+                <div className="space-y-4 p-4 rounded-lg border border-dashed">
+                  <div className="space-y-2">
+                    <Label>价格区间宽度: ±{config.clmmPriceRangePct ?? 20}%</Label>
+                    <Slider
+                      value={[config.clmmPriceRangePct ?? 20]}
+                      onValueChange={([value]) => withResetConfirmation(() => setConfig({ clmmPriceRangePct: value }))}
+                      min={1}
+                      max={100}
+                      step={1}
+                      data-testid="slider-clmm-range"
+                    />
+                    <p className="text-xs text-muted-foreground">CLMM 价格波动的上下限范围</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>基础日波动率: {config.clmmBaseVolatilityPct ?? 2}%</Label>
+                    <Slider
+                      value={[config.clmmBaseVolatilityPct ?? 2]}
+                      onValueChange={([value]) => withResetConfirmation(() => setConfig({ clmmBaseVolatilityPct: value }))}
+                      min={0}
+                      max={10}
+                      step={0.1}
+                      data-testid="slider-clmm-volatility"
+                    />
+                    <p className="text-xs text-muted-foreground">每日价格随机波动的基础幅度</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>铸造额波动缩放: {config.clmmVolatilityPerThousandUsdc ?? 0.1}% / 1000 USDC</Label>
+                    <Slider
+                      value={[config.clmmVolatilityPerThousandUsdc ?? 0.1]}
+                      onValueChange={([value]) => withResetConfirmation(() => setConfig({ clmmVolatilityPerThousandUsdc: value }))}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      data-testid="slider-clmm-vol-scale"
+                    />
+                    <p className="text-xs text-muted-foreground">每 1000 USDC 铸造额外增加的日波动率</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>日均漂移率: {config.clmmDriftPct ?? 0.5}%</Label>
+                    <Slider
+                      value={[config.clmmDriftPct ?? 0.5]}
+                      onValueChange={([value]) => withResetConfirmation(() => setConfig({ clmmDriftPct: value }))}
+                      min={-5}
+                      max={5}
+                      step={0.1}
+                      data-testid="slider-clmm-drift"
+                    />
+                    <p className="text-xs text-muted-foreground">正值 = 价格上升趋势，负值 = 下降趋势</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-lg">初始 LP 底池</CardTitle>
               <CardDescription>设置 AMM 初始流动性池</CardDescription>
             </CardHeader>
@@ -250,7 +388,7 @@ export default function ConfigPage() {
                   <Input
                     type="number"
                     value={initialLpUsdc}
-                    onChange={(e) => setConfig({ initialLpUsdc: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => withResetConfirmation(() => setConfig({ initialLpUsdc: parseFloat(e.target.value) || 0 }))}
                     min={0}
                     data-testid="input-initial-usdc"
                   />
@@ -260,7 +398,7 @@ export default function ConfigPage() {
                   <Input
                     type="number"
                     value={initialLpMs}
-                    onChange={(e) => setConfig({ initialLpMs: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => withResetConfirmation(() => setConfig({ initialLpMs: parseFloat(e.target.value) || 0 }))}
                     min={0}
                     data-testid="input-initial-af"
                   />
@@ -288,7 +426,7 @@ export default function ConfigPage() {
                   value={[depositLpRatio]}
                   onValueChange={([value]) => {
                     const maxValue = 100 - depositBuybackRatio;
-                    setConfig({ depositLpRatio: Math.min(value, maxValue) });
+                    withResetConfirmation(() => setConfig({ depositLpRatio: Math.min(value, maxValue) }));
                   }}
                   min={0}
                   max={100}
@@ -304,7 +442,7 @@ export default function ConfigPage() {
                   value={[depositBuybackRatio]}
                   onValueChange={([value]) => {
                     const maxValue = 100 - depositLpRatio;
-                    setConfig({ depositBuybackRatio: Math.min(value, maxValue) });
+                    withResetConfirmation(() => setConfig({ depositBuybackRatio: Math.min(value, maxValue) }));
                   }}
                   min={0}
                   max={100}
@@ -340,7 +478,7 @@ export default function ConfigPage() {
                   <Label>交易金倍数: {config.tradingCapitalMultiplier}x</Label>
                   <Slider
                     value={[config.tradingCapitalMultiplier]}
-                    onValueChange={([value]) => setConfig({ tradingCapitalMultiplier: value })}
+                    onValueChange={([value]) => withResetConfirmation(() => setConfig({ tradingCapitalMultiplier: value }))}
                     min={1}
                     max={10}
                     step={0.5}
@@ -352,7 +490,7 @@ export default function ConfigPage() {
                   <Label>日交易量 (%): {config.dailyTradingVolumePercent}%</Label>
                   <Slider
                     value={[config.dailyTradingVolumePercent]}
-                    onValueChange={([value]) => setConfig({ dailyTradingVolumePercent: value })}
+                    onValueChange={([value]) => withResetConfirmation(() => setConfig({ dailyTradingVolumePercent: value }))}
                     min={1}
                     max={100}
                     step={1}
@@ -373,7 +511,7 @@ export default function ConfigPage() {
                   <Label>销毁比例 (%): {config.msExitBurnRatio}%</Label>
                   <Slider
                     value={[config.msExitBurnRatio]}
-                    onValueChange={([value]) => setConfig({ msExitBurnRatio: value })}
+                    onValueChange={([value]) => withResetConfirmation(() => setConfig({ msExitBurnRatio: value }))}
                     min={0}
                     max={50}
                     step={1}
@@ -405,7 +543,7 @@ export default function ConfigPage() {
                       <Input
                         type="number"
                         value={pkg.releaseMultiplier}
-                        onChange={(e) => updatePackageConfig(pkg.tier, { releaseMultiplier: parseFloat(e.target.value) || 1 })}
+                        onChange={(e) => withResetConfirmation(() => updatePackageConfig(pkg.tier, { releaseMultiplier: parseFloat(e.target.value) || 1 }))}
                         step="0.1"
                         min={0.1}
                         max={10}
@@ -418,7 +556,7 @@ export default function ConfigPage() {
                         <Input
                           type="number"
                           value={pkg.stakingPeriodDays}
-                          onChange={(e) => updatePackageConfig(pkg.tier, { stakingPeriodDays: parseInt(e.target.value) || 30 })}
+                          onChange={(e) => withResetConfirmation(() => updatePackageConfig(pkg.tier, { stakingPeriodDays: parseInt(e.target.value) || 30 }))}
                           min={1}
                           max={365}
                           data-testid={`input-staking-days-${pkg.tier}`}
@@ -430,7 +568,7 @@ export default function ConfigPage() {
                       <Input
                         type="number"
                         value={pkg.tradingFeeRate}
-                        onChange={(e) => updatePackageConfig(pkg.tier, { tradingFeeRate: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => withResetConfirmation(() => updatePackageConfig(pkg.tier, { tradingFeeRate: parseFloat(e.target.value) || 0 }))}
                         step="0.5"
                         min={0}
                         max={20}
@@ -445,7 +583,7 @@ export default function ConfigPage() {
                       <Input
                         type="number"
                         value={pkg.tradingProfitRate}
-                        onChange={(e) => updatePackageConfig(pkg.tier, { tradingProfitRate: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => withResetConfirmation(() => updatePackageConfig(pkg.tier, { tradingProfitRate: parseFloat(e.target.value) || 0 }))}
                         step="0.5"
                         min={-50}
                         max={50}
@@ -457,7 +595,7 @@ export default function ConfigPage() {
                       <Input
                         type="number"
                         value={pkg.profitSharePercent}
-                        onChange={(e) => updatePackageConfig(pkg.tier, { profitSharePercent: parseFloat(e.target.value) || 60 })}
+                        onChange={(e) => withResetConfirmation(() => updatePackageConfig(pkg.tier, { profitSharePercent: parseFloat(e.target.value) || 60 }))}
                         min={0}
                         max={100}
                         data-testid={`input-profit-share-${pkg.tier}`}
@@ -477,11 +615,11 @@ export default function ConfigPage() {
                           onValueChange={([value]) => {
                             const remaining = 100 - value;
                             const keepRatio = pkg.releaseKeepPercent / (pkg.releaseKeepPercent + pkg.releaseConvertPercent || 1);
-                            updatePackageConfig(pkg.tier, {
+                            withResetConfirmation(() => updatePackageConfig(pkg.tier, {
                               releaseWithdrawPercent: value,
                               releaseKeepPercent: Math.round(remaining * keepRatio),
                               releaseConvertPercent: Math.round(remaining * (1 - keepRatio))
-                            });
+                            }));
                           }}
                           min={0}
                           max={100}
@@ -498,10 +636,10 @@ export default function ConfigPage() {
                           onValueChange={([value]) => {
                             const maxValue = 100 - pkg.releaseWithdrawPercent;
                             const newKeep = Math.min(value, maxValue);
-                            updatePackageConfig(pkg.tier, {
+                            withResetConfirmation(() => updatePackageConfig(pkg.tier, {
                               releaseKeepPercent: newKeep,
                               releaseConvertPercent: maxValue - newKeep
-                            });
+                            }));
                           }}
                           min={0}
                           max={100 - pkg.releaseWithdrawPercent}
@@ -546,7 +684,7 @@ export default function ConfigPage() {
                   <Switch
                     id="multiplier-cap-enabled"
                     checked={config.multiplierCapEnabled ?? true}
-                    onCheckedChange={(checked) => setConfig({ multiplierCapEnabled: checked })}
+                    onCheckedChange={(checked) => withResetConfirmation(() => setConfig({ multiplierCapEnabled: checked }))}
                     data-testid="switch-multiplier-cap"
                   />
                 </div>
@@ -578,7 +716,7 @@ export default function ConfigPage() {
                         <Input
                           type="number"
                           value={dc.releaseMultiplier}
-                          onChange={(e) => updateDaysConfig(days, { releaseMultiplier: parseFloat(e.target.value) || 1 })}
+                          onChange={(e) => withResetConfirmation(() => updateDaysConfig(days, { releaseMultiplier: parseFloat(e.target.value) || 1 }))}
                           step="0.1"
                           min={1}
                           max={10}
@@ -590,7 +728,7 @@ export default function ConfigPage() {
                         <Input
                           type="number"
                           value={dc.tradingFeeRate}
-                          onChange={(e) => updateDaysConfig(days, { tradingFeeRate: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => withResetConfirmation(() => updateDaysConfig(days, { tradingFeeRate: parseFloat(e.target.value) || 0 }))}
                           step="0.5"
                           min={0}
                           max={100}
@@ -602,7 +740,7 @@ export default function ConfigPage() {
                         <Input
                           type="number"
                           value={dc.tradingProfitRate}
-                          onChange={(e) => updateDaysConfig(days, { tradingProfitRate: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => withResetConfirmation(() => updateDaysConfig(days, { tradingProfitRate: parseFloat(e.target.value) || 0 }))}
                           step="0.5"
                           min={-100}
                           max={100}
@@ -614,7 +752,7 @@ export default function ConfigPage() {
                         <Input
                           type="number"
                           value={dc.profitSharePercent}
-                          onChange={(e) => updateDaysConfig(days, { profitSharePercent: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => withResetConfirmation(() => updateDaysConfig(days, { profitSharePercent: parseFloat(e.target.value) || 0 }))}
                           min={0}
                           max={100}
                           data-testid={`input-days-profit-share-${days}`}
@@ -625,7 +763,7 @@ export default function ConfigPage() {
                         <Input
                           type="number"
                           value={dc.withdrawFeePercent}
-                          onChange={(e) => updateDaysConfig(days, { withdrawFeePercent: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => withResetConfirmation(() => updateDaysConfig(days, { withdrawFeePercent: parseFloat(e.target.value) || 0 }))}
                           min={0}
                           max={100}
                           data-testid={`input-days-withdraw-fee-${days}`}
@@ -653,7 +791,7 @@ export default function ConfigPage() {
                   <Input
                     type="number"
                     value={config.lpPoolUsdcRatio}
-                    onChange={(e) => setConfig({ lpPoolUsdcRatio: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => withResetConfirmation(() => setConfig({ lpPoolUsdcRatio: parseFloat(e.target.value) || 0 }))}
                     min={0}
                     max={100}
                     data-testid="input-lp-usdc"
@@ -664,7 +802,7 @@ export default function ConfigPage() {
                   <Input
                     type="number"
                     value={config.lpPoolMsRatio}
-                    onChange={(e) => setConfig({ lpPoolMsRatio: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => withResetConfirmation(() => setConfig({ lpPoolMsRatio: parseFloat(e.target.value) || 0 }))}
                     min={0}
                     max={100}
                     data-testid="input-lp-af"
@@ -675,7 +813,7 @@ export default function ConfigPage() {
                   <Input
                     type="number"
                     value={config.buybackRatio}
-                    onChange={(e) => setConfig({ buybackRatio: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => withResetConfirmation(() => setConfig({ buybackRatio: parseFloat(e.target.value) || 0 }))}
                     min={0}
                     max={100}
                     data-testid="input-buyback"
@@ -686,7 +824,7 @@ export default function ConfigPage() {
                   <Input
                     type="number"
                     value={config.reserveRatio}
-                    onChange={(e) => setConfig({ reserveRatio: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => withResetConfirmation(() => setConfig({ reserveRatio: parseFloat(e.target.value) || 0 }))}
                     min={0}
                     max={100}
                     data-testid="input-reserve"
@@ -726,7 +864,7 @@ export default function ConfigPage() {
                         onChange={(e) => {
                           const newRates = [...config.brokerLayerRates];
                           newRates[index] = { ...lr, ratePercent: parseFloat(e.target.value) || 0 };
-                          setConfig({ brokerLayerRates: newRates });
+                          withResetConfirmation(() => setConfig({ brokerLayerRates: newRates }));
                         }}
                         min={0}
                         max={20}
@@ -775,7 +913,7 @@ export default function ConfigPage() {
                       onChange={(e) => {
                         const newRates = [...config.brokerDividendRates];
                         newRates[index] = parseFloat(e.target.value) || 0;
-                        setConfig({ brokerDividendRates: newRates });
+                        withResetConfirmation(() => setConfig({ brokerDividendRates: newRates }));
                       }}
                       min={0}
                       max={100}
@@ -793,6 +931,26 @@ export default function ConfigPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Parameter change reset confirmation dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>参数已更改</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前有 {stakingOrders.length} 笔铸造订单和模拟数据。修改核心参数后，现有模拟数据可能与新参数不一致。是否重置所有模拟数据并恢复默认值？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleResetCancel}>
+              仅更新参数
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetConfirm}>
+              重置数据并恢复默认
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

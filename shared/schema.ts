@@ -106,6 +106,13 @@ export const nmsConfigSchema = z.object({
   depositTradingPoolRatio: z.number().min(0).max(100), // % of deposits into trading pool
   poolDailyProfitRate: z.number().min(0).max(100), // Daily profit rate of trading pool
 
+  // Price source: AAM pool price or CLMM simulated price
+  priceSource: z.enum(['aam', 'clmm']),
+  clmmPriceRangePct: z.number().min(1).max(200),      // CLMM range width % (e.g. 20 = ±20%)
+  clmmBaseVolatilityPct: z.number().min(0),             // Base daily volatility % (e.g. 2 = ±2%/day)
+  clmmVolatilityPerThousandUsdc: z.number().min(0),     // Extra volatility per 1000 USDC minted
+  clmmDriftPct: z.number(),                             // Daily price drift % (positive=uptrend)
+
   // Broker system — layer rates, level access, dividend rates
   brokerLayerRates: z.array(z.object({
     fromLayer: z.number(),
@@ -169,6 +176,8 @@ export const dailySimulationSchema = z.object({
   lpContributionUsdc: z.number(), // USDC added to LP pool
   lpContributionMsValue: z.number(), // MS value added to LP pool (in USDC)
   reserveAmountUsdc: z.number(), // Forex reserve (in USDC)
+  // AAM pool real price (when using CLMM price source, msPrice = CLMM effective price)
+  aamPrice: z.number().optional(),
 });
 
 export type DailySimulation = z.infer<typeof dailySimulationSchema>;
@@ -279,6 +288,11 @@ export const defaultConfig: NMSConfig = {
   buybackRatio: 20,
   reserveRatio: 50,
   multiplierCapEnabled: true,
+  priceSource: 'clmm',
+  clmmPriceRangePct: 20,
+  clmmBaseVolatilityPct: 2,
+  clmmVolatilityPerThousandUsdc: 0.1,
+  clmmDriftPct: 0.5,
   tradingMode: 'individual',
   dividendMarginMultiplier: 3,
   depositTradingPoolRatio: 50,

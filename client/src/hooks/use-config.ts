@@ -33,6 +33,12 @@ const mergeWithDefaults = (savedConfig: Partial<NMSConfig>): NMSConfig => {
     })) ?? defaultDaysConfigs,
     // Multiplier cap and trading mode new fields
     multiplierCapEnabled: savedConfig.multiplierCapEnabled ?? defaultConfig.multiplierCapEnabled,
+    // Price source fields
+    priceSource: savedConfig.priceSource ?? defaultConfig.priceSource,
+    clmmPriceRangePct: savedConfig.clmmPriceRangePct ?? defaultConfig.clmmPriceRangePct,
+    clmmBaseVolatilityPct: savedConfig.clmmBaseVolatilityPct ?? defaultConfig.clmmBaseVolatilityPct,
+    clmmVolatilityPerThousandUsdc: savedConfig.clmmVolatilityPerThousandUsdc ?? defaultConfig.clmmVolatilityPerThousandUsdc,
+    clmmDriftPct: savedConfig.clmmDriftPct ?? defaultConfig.clmmDriftPct,
     tradingMode: savedConfig.tradingMode ?? defaultConfig.tradingMode,
     dividendMarginMultiplier: savedConfig.dividendMarginMultiplier ?? defaultConfig.dividendMarginMultiplier,
     depositTradingPoolRatio: savedConfig.depositTradingPoolRatio ?? defaultConfig.depositTradingPoolRatio,

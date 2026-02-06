@@ -80,16 +80,19 @@ export function calculateLinearDailyRelease(
 }
 
 // Calculate days mode daily release
-// afAtCurrentPrice = amount / msPrice
-// totalMsToRelease = afAtCurrentPrice * releaseMultiplier
+// Uses stored totalMsToRelease (fixed at order creation time based on entry AAM price)
+// Falls back to current price calculation only if stored value is not available
 // dailyMs = totalMsToRelease / durationDays
 export function calculateDaysModeDailyRelease(
   order: StakingOrder,
   daysConfig: DaysConfig,
   msPrice: number
 ): { dailyMs: number; totalMsToRelease: number } {
-  const afAtCurrentPrice = order.amount / msPrice;
-  const totalMsToRelease = afAtCurrentPrice * daysConfig.releaseMultiplier;
+  // Use stored totalMsToRelease from order creation time (fixed at entry price)
+  // Only fallback to current price calculation if not stored
+  const totalMsToRelease = (order.totalMsToRelease && order.totalMsToRelease > 0)
+    ? order.totalMsToRelease
+    : (order.amount / msPrice) * daysConfig.releaseMultiplier;
   const dailyMs = totalMsToRelease / (order.durationDays || daysConfig.days);
   return { dailyMs, totalMsToRelease };
 }
@@ -415,6 +418,64 @@ export function simulateAAMPool(
   return newPool;
 }
 
+// ============================================================
+// CLMM price trajectory generator (deterministic seeded random)
+// ============================================================
+
+// Simple deterministic PRNG (mulberry32) for reproducible price paths
+function mulberry32(seed: number): () => number {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Box-Muller transform: convert uniform [0,1) pair to standard normal
+function boxMuller(u1: number, u2: number): number {
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+/**
+ * Generate a CLMM price trajectory with drift, volatility, and range clamping.
+ * Uses deterministic seed so same parameters → same price path.
+ */
+export function generateCLMMPriceTrajectory(
+  initialPrice: number,
+  days: number,
+  config: NMSConfig,
+  totalMintedUsdc: number
+): number[] {
+  const effectiveVolatility =
+    config.clmmBaseVolatilityPct + (totalMintedUsdc / 1000) * config.clmmVolatilityPerThousandUsdc;
+  const priceLower = initialPrice * (1 - config.clmmPriceRangePct / 100);
+  const priceUpper = initialPrice * (1 + config.clmmPriceRangePct / 100);
+  const drift = config.clmmDriftPct / 100;
+  const vol = effectiveVolatility / 100;
+
+  // Deterministic seed based on parameters
+  const seed = Math.round(days * 1000 + totalMintedUsdc * 7 + initialPrice * 13 + config.clmmPriceRangePct * 31);
+  const rng = mulberry32(seed);
+
+  const prices: number[] = [];
+  let price = initialPrice;
+
+  for (let d = 0; d < days; d++) {
+    const u1 = Math.max(1e-10, rng()); // avoid log(0)
+    const u2 = rng();
+    const z = boxMuller(u1, u2);
+    // Geometric Brownian Motion step
+    price = price * (1 + drift + vol * z);
+    // Clamp to range
+    price = Math.max(priceLower, Math.min(priceUpper, price));
+    prices.push(price);
+  }
+
+  return prices;
+}
+
 // Simulation result type including per-order daily details
 export interface SimulationResult {
   dailySimulations: DailySimulation[];
@@ -444,6 +505,19 @@ export function runSimulationWithDetails(
   const orderDailyDetails = new Map<string, OrderDailyDetail[]>();
   let currentPool = { ...initialPool };
 
+  // Pre-generate CLMM price trajectory if using CLMM price source
+  const useCLMMPrice = config.priceSource === 'clmm';
+  let clmmPrices: number[] = [];
+  if (useCLMMPrice) {
+    const totalMintedUsdc = orders.reduce((sum, o) => sum + o.amount, 0);
+    clmmPrices = generateCLMMPriceTrajectory(
+      currentPool.msPrice,
+      days,
+      config,
+      totalMintedUsdc
+    );
+  }
+
   // Initialize per-order tracking state
   const orderState = new Map<string, { cumMsReleased: number; msKeptInSystem: number; msWithdrawn: number }>();
   for (const order of orders) {
@@ -452,6 +526,9 @@ export function runSimulationWithDetails(
   }
 
   for (let day = 1; day <= days; day++) {
+    // Determine effective price for this day (CLMM simulated or AAM pool)
+    const effectivePrice = useCLMMPrice ? clmmPrices[day - 1] : currentPool.msPrice;
+
     let totalMsReleased = 0;
     let totalUserProfit = 0;
     let totalPlatformProfit = 0;
@@ -476,7 +553,7 @@ export function runSimulationWithDetails(
         orderDailyDetails.get(order.id)?.push({
           day, orderId: order.id,
           principalRelease: 0, interestRelease: 0, dailyMsRelease: 0,
-          msPrice: currentPool.msPrice, cumMsReleased: state.cumMsReleased,
+          msPrice: effectivePrice, cumMsReleased: state.cumMsReleased,
           msInSystem: state.msKeptInSystem, tradingCapital: 0,
           forexIncome: 0, withdrawnMs: 0, withdrawFee: 0,
         });
@@ -491,14 +568,14 @@ export function runSimulationWithDetails(
         const durationDays = order.durationDays || daysConfig.days;
         const capValue = order.amount * daysConfig.releaseMultiplier;
 
-        // Check if multiplier cap already reached
+        // Check if multiplier cap already reached (uses effectivePrice)
         const alreadyCapped = config.multiplierCapEnabled &&
-          isMultiplierCapReached(state.cumMsReleased, currentPool.msPrice, order.amount, daysConfig.releaseMultiplier);
+          isMultiplierCapReached(state.cumMsReleased, effectivePrice, order.amount, daysConfig.releaseMultiplier);
 
         // Check if release period has passed OR already capped
         if (effectiveDay > durationDays || alreadyCapped) {
           // Even after cap/completion, if MS kept in system, continue trading income
-          const tradingCapital = calculateAfBasedTradingCapital(state.msKeptInSystem, currentPool.msPrice);
+          const tradingCapital = calculateAfBasedTradingCapital(state.msKeptInSystem, effectivePrice);
           const canTrade = effectiveDay > config.releaseStartsTradingDays;
           let forexIncome = 0;
 
@@ -527,7 +604,7 @@ export function runSimulationWithDetails(
           orderDailyDetails.get(order.id)?.push({
             day, orderId: order.id,
             principalRelease: 0, interestRelease: 0, dailyMsRelease: 0,
-            msPrice: currentPool.msPrice, cumMsReleased: state.cumMsReleased,
+            msPrice: effectivePrice, cumMsReleased: state.cumMsReleased,
             msInSystem: state.msKeptInSystem,
             tradingCapital,
             forexIncome, withdrawnMs: 0, withdrawFee: 0,
@@ -535,17 +612,17 @@ export function runSimulationWithDetails(
           continue;
         }
 
-        // Calculate daily MS release for days mode
-        let { dailyMs } = calculateDaysModeDailyRelease(order, daysConfig, currentPool.msPrice);
+        // Calculate daily MS release for days mode (uses effectivePrice)
+        let { dailyMs } = calculateDaysModeDailyRelease(order, daysConfig, effectivePrice);
 
         // Apply multiplier cap: truncate if this release would exceed cap
         if (config.multiplierCapEnabled) {
-          const currentValue = state.cumMsReleased * currentPool.msPrice;
-          const afterValue = (state.cumMsReleased + dailyMs) * currentPool.msPrice;
+          const currentValue = state.cumMsReleased * effectivePrice;
+          const afterValue = (state.cumMsReleased + dailyMs) * effectivePrice;
           if (afterValue >= capValue) {
             // Truncate: release only enough to reach cap exactly
             const remainingValue = Math.max(0, capValue - currentValue);
-            dailyMs = currentPool.msPrice > 0 ? remainingValue / currentPool.msPrice : 0;
+            dailyMs = effectivePrice > 0 ? remainingValue / effectivePrice : 0;
           }
         }
 
@@ -553,7 +630,7 @@ export function runSimulationWithDetails(
         state.cumMsReleased += dailyMs;
 
         // Apply exit distribution using per-order withdrawal ratio
-        const exitDist = calculateAFExitDistribution(dailyMs, currentPool.msPrice, order.withdrawPercent ?? 60, config);
+        const exitDist = calculateAFExitDistribution(dailyMs, effectivePrice, order.withdrawPercent ?? 60, config);
         totalBurn += exitDist.toBurnMs;
         totalToSecondaryMarket += exitDist.toSecondaryMarketMs;
 
@@ -562,10 +639,10 @@ export function runSimulationWithDetails(
         state.msKeptInSystem += exitDist.toHoldMs;
 
         // Calculate USDC revenue from selling withdrawn MS to LP pool
-        totalAfSellingRevenue += exitDist.toSecondaryMarketMs * currentPool.msPrice;
+        totalAfSellingRevenue += exitDist.toSecondaryMarketMs * effectivePrice;
 
         // Trading capital from un-withdrawn MS
-        const tradingCapital = calculateAfBasedTradingCapital(state.msKeptInSystem, currentPool.msPrice);
+        const tradingCapital = calculateAfBasedTradingCapital(state.msKeptInSystem, effectivePrice);
 
         // If MS kept (not withdrawn), generate trading income (individual mode only here; dividend_pool handled in second pass)
         const canTrade = effectiveDay > config.releaseStartsTradingDays;
@@ -597,7 +674,7 @@ export function runSimulationWithDetails(
           principalRelease: 0, // Days mode doesn't split principal/interest
           interestRelease: 0,
           dailyMsRelease: dailyMs,
-          msPrice: currentPool.msPrice,
+          msPrice: effectivePrice,
           cumMsReleased: state.cumMsReleased,
           msInSystem: state.msKeptInSystem,
           tradingCapital,
@@ -616,7 +693,7 @@ export function runSimulationWithDetails(
           orderDailyDetails.get(order.id)?.push({
             day, orderId: order.id,
             principalRelease: 0, interestRelease: 0, dailyMsRelease: 0,
-            msPrice: currentPool.msPrice, cumMsReleased: state.cumMsReleased,
+            msPrice: effectivePrice, cumMsReleased: state.cumMsReleased,
             msInSystem: state.msKeptInSystem, tradingCapital: 0,
             forexIncome: 0, withdrawnMs: 0, withdrawFee: 0,
           });
@@ -627,12 +704,12 @@ export function runSimulationWithDetails(
         const canTrade = effectiveDay > config.releaseStartsTradingDays;
 
         // Calculate MS release using linear release (principal + interest)
-        const { dailyMs, principalUsdc, interestUsdc } = calculateLinearDailyRelease(order, config, currentPool.msPrice);
+        const { dailyMs, principalUsdc, interestUsdc } = calculateLinearDailyRelease(order, config, effectivePrice);
         totalMsReleased += dailyMs;
         state.cumMsReleased += dailyMs;
 
         // Calculate exit distribution using per-order withdrawal ratio
-        const exitDist = calculateAFExitDistribution(dailyMs, currentPool.msPrice, order.withdrawPercent ?? 60, config);
+        const exitDist = calculateAFExitDistribution(dailyMs, effectivePrice, order.withdrawPercent ?? 60, config);
         totalBurn += exitDist.toBurnMs;
         totalToSecondaryMarket += exitDist.toSecondaryMarketMs;
 
@@ -641,7 +718,7 @@ export function runSimulationWithDetails(
         state.msKeptInSystem += exitDist.toHoldMs;
 
         // Calculate USDC revenue from selling withdrawn MS to LP pool
-        totalAfSellingRevenue += exitDist.toSecondaryMarketMs * currentPool.msPrice;
+        totalAfSellingRevenue += exitDist.toSecondaryMarketMs * effectivePrice;
 
         // Trading simulation
         let forexIncome = 0;
@@ -673,7 +750,7 @@ export function runSimulationWithDetails(
           principalRelease: principalUsdc,
           interestRelease: interestUsdc,
           dailyMsRelease: dailyMs,
-          msPrice: currentPool.msPrice,
+          msPrice: effectivePrice,
           cumMsReleased: state.cumMsReleased,
           msInSystem: state.msKeptInSystem,
           tradingCapital: order.amount * config.tradingCapitalMultiplier,
@@ -738,10 +815,10 @@ export function runSimulationWithDetails(
       }
     }
 
-    // Convert LP contribution MS from USDC value to MS units
+    // Convert LP contribution MS from USDC value to MS units (uses AAM pool price for pool operations)
     const lpAfUnits = totalLpContributionAf / currentPool.msPrice;
 
-    // Update pool (including buyback from trading fund flow)
+    // Update AAM pool normally (pool mechanics always use pool price)
     currentPool = simulateAAMPool(
       currentPool,
       totalLpContributionUsdc,
@@ -756,7 +833,7 @@ export function runSimulationWithDetails(
     results.push({
       day,
       msReleased: totalMsReleased,
-      msPrice: currentPool.msPrice,
+      msPrice: effectivePrice, // Output effective price (CLMM or AAM)
       userProfit: totalUserProfit,
       platformProfit: totalPlatformProfit,
       brokerProfit: totalBrokerProfit,
@@ -772,6 +849,7 @@ export function runSimulationWithDetails(
       lpContributionUsdc: totalLpContributionUsdc,
       lpContributionMsValue: totalLpContributionAf,
       reserveAmountUsdc: totalReserve,
+      aamPrice: useCLMMPrice ? currentPool.msPrice : undefined, // Record AAM price when using CLMM
     });
   }
 
@@ -975,12 +1053,12 @@ export function simulateDurationComparison(
       totalHeldAf = last.msInSystem;
     }
 
-    // Use initial MS price for all valuation (fair comparison across durations)
-    const baseAfPrice = initialPool.msPrice;
-    const msArbitrageRevenue = totalWithdrawnAf * (1 - config.msExitBurnRatio / 100) * baseAfPrice;
-    const finalAfPrice = baseAfPrice;
+    // Use simulation-derived final price for realistic valuation
+    const lastSimDay = sim.dailySimulations[sim.dailySimulations.length - 1];
+    const finalAfPrice = lastSimDay ? lastSimDay.msPrice : initialPool.msPrice;
+    const msArbitrageRevenue = totalWithdrawnAf * (1 - config.msExitBurnRatio / 100) * finalAfPrice;
 
-    const heldMsValue = totalHeldAf * baseAfPrice;
+    const heldMsValue = totalHeldAf * finalAfPrice;
     const totalRevenue = msArbitrageRevenue + tradingProfit; // realized only
     const netProfit = totalRevenue - amount;
     const avgDailyIncome = days > 0 ? totalRevenue / days : 0;

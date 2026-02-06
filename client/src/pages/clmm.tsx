@@ -78,6 +78,7 @@ export default function CLMMPage() {
     // Use final simulation pool state (after all LP additions, buybacks, MS sells)
     const poolUsdc = lastDay ? lastDay.poolUsdcBalance : aamPool.usdcBalance;
     const poolAf = lastDay ? lastDay.poolMsBalance : aamPool.msBalance;
+    // msPrice from simulation already reflects CLMM effective price when priceSource='clmm'
     const price = lastDay ? lastDay.msPrice : (aamPool.msPrice > 0 ? aamPool.msPrice : 0.1);
 
     const priceLower = price * (1 - rangeWidthPct / 100);
@@ -108,8 +109,11 @@ export default function CLMMPage() {
         : 0;
     const netFlow = avgDailyBuy - avgDailySell;
 
-    // Price trajectory from simulation
+    // Price trajectory from simulation (already uses CLMM effective price when applicable)
     const priceTrajectory = stakingSimData.map((r) => r.msPrice);
+
+    // AAM price trajectory (for comparison when using CLMM price source)
+    const aamPriceTrajectory = stakingSimData.map((r) => r.aamPrice ?? r.msPrice);
 
     return {
       price,
@@ -126,6 +130,7 @@ export default function CLMMPage() {
       avgDailyBuy,
       netFlow,
       priceTrajectory,
+      aamPriceTrajectory,
     };
   }, [aamPool, stakingSimData, rangeWidthPct]);
 
@@ -175,9 +180,10 @@ export default function CLMMPage() {
 
   // Chart data for CLMM results
   const chartData = useMemo(() => {
-    return simulationResults.map((r) => ({
+    return simulationResults.map((r, i) => ({
       day: r.day,
       price: r.price,
+      aamPrice: derived.aamPriceTrajectory[i] ?? r.price,
       positionValue: r.positionValue,
       hodlValue: r.hodlValue,
       tokenXValue: r.tokenX * r.price,
@@ -187,7 +193,7 @@ export default function CLMMPage() {
       v2Value: r.v2PositionValue,
       inRange: r.inRange,
     }));
-  }, [simulationResults]);
+  }, [simulationResults, derived.aamPriceTrajectory]);
 
   // Buy/sell trend chart data
   const buySellChartData = useMemo(() => {
@@ -245,10 +251,15 @@ export default function CLMMPage() {
             Uniswap V3 风格集中流动性仓位模拟，自动从铸造模拟派生参数
           </p>
         </div>
-        <Badge variant="outline" className="text-sm">
-          <Target className="h-3 w-3 mr-1" />
-          Concentrated Liquidity
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={config.priceSource === 'clmm' ? 'default' : 'secondary'} className="text-sm">
+            币价来源: {config.priceSource === 'clmm' ? 'CLMM' : 'AAM'}
+          </Badge>
+          <Badge variant="outline" className="text-sm">
+            <Target className="h-3 w-3 mr-1" />
+            Concentrated Liquidity
+          </Badge>
+        </div>
       </div>
 
       {/* Controls + Derived Parameters */}
@@ -523,10 +534,20 @@ export default function CLMMPage() {
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(value: number, name: string) => {
-                    if (name === "price") return [`$${value.toFixed(6)}`, "价格"];
+                    if (name === "price") return [`$${value.toFixed(6)}`, "有效价格"];
+                    if (name === "aamPrice") return [`$${value.toFixed(6)}`, "AAM 价格"];
                     return [value, name];
                   }}
                   labelFormatter={(label) => `Day ${label}`}
+                />
+                <Legend
+                  formatter={(value: string) => {
+                    const labels: Record<string, string> = {
+                      price: "有效价格",
+                      aamPrice: "AAM 价格",
+                    };
+                    return labels[value] || value;
+                  }}
                 />
                 <ReferenceArea
                   y1={derived.priceLower}
@@ -549,6 +570,17 @@ export default function CLMMPage() {
                   strokeWidth={2}
                   dot={false}
                 />
+                {config.priceSource === 'clmm' && (
+                  <Line
+                    type="monotone"
+                    dataKey="aamPrice"
+                    name="aamPrice"
+                    stroke="hsl(var(--chart-4))"
+                    strokeWidth={1.5}
+                    dot={false}
+                    strokeDasharray="5 5"
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
