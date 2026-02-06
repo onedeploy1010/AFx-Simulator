@@ -26,11 +26,19 @@ const mergeWithDefaults = (savedConfig: Partial<NMSConfig>): NMSConfig => {
       releaseKeepPercent: pkg.releaseKeepPercent ?? defaultConfig.packageConfigs[i]?.releaseKeepPercent ?? 20,
       releaseConvertPercent: pkg.releaseConvertPercent ?? defaultConfig.packageConfigs[i]?.releaseConvertPercent ?? 20,
     })) ?? defaultConfig.packageConfigs,
-    // Merge days configs properly
-    daysConfigs: savedConfig.daysConfigs?.map((dc, i) => ({
-      ...defaultDaysConfigs[i],
-      ...dc,
-    })) ?? defaultDaysConfigs,
+    // Merge days configs properly (preserving saved values + appending new default tiers)
+    daysConfigs: (() => {
+      if (!savedConfig.daysConfigs) return defaultDaysConfigs;
+      const merged = savedConfig.daysConfigs.map((dc, i) => ({
+        ...defaultDaysConfigs[i],
+        ...dc,
+      }));
+      // Append any new default tiers not present in saved config
+      for (let i = savedConfig.daysConfigs.length; i < defaultDaysConfigs.length; i++) {
+        merged.push(defaultDaysConfigs[i]);
+      }
+      return merged;
+    })(),
     // Multiplier cap and trading mode new fields
     multiplierCapEnabled: savedConfig.multiplierCapEnabled ?? defaultConfig.multiplierCapEnabled,
     // Price source fields

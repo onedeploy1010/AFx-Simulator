@@ -14,7 +14,7 @@ export type TradingMode = 'individual' | 'dividend_pool';
 export type SimulationMode = 'package' | 'days';
 
 // Days mode tier durations
-export const DAYS_MODE_TIERS = [30, 60, 90, 180] as const;
+export const DAYS_MODE_TIERS = [30, 60, 90, 180, 360] as const;
 export type DaysModeTier = typeof DAYS_MODE_TIERS[number];
 
 // User profit sharing tiers
@@ -255,6 +255,7 @@ export const defaultDaysConfigs: DaysConfig[] = [
   { days: 60, releaseMultiplier: 1.6, tradingFeeRate: 8, tradingProfitRate: 10, profitSharePercent: 65, withdrawFeePercent: 20 },
   { days: 90, releaseMultiplier: 1.8, tradingFeeRate: 6, tradingProfitRate: 10, profitSharePercent: 75, withdrawFeePercent: 20 },
   { days: 180, releaseMultiplier: 2.0, tradingFeeRate: 3, tradingProfitRate: 10, profitSharePercent: 80, withdrawFeePercent: 20 },
+  { days: 360, releaseMultiplier: 2.5, tradingFeeRate: 2, tradingProfitRate: 10, profitSharePercent: 85, withdrawFeePercent: 20 },
 ];
 
 // Default configuration
